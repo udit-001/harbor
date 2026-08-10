@@ -8,7 +8,7 @@
 # internal/web/app.css is committed so //go:embed resolves in CI.
 web/app.css
 
-# Installed skills from 'pharos skills install'
+# Installed skills from 'harbor skills install'
 .claude/
 .codex/
 .opencode/
@@ -21,11 +21,8 @@ skills-lock.json
 design/
 test-results/
 
-# Debugging screenshots
-glossary-page.png
-glossary-snapshot
-glossary-updated.png
-mermaid-toolbar-visible.png
+# Debugging screenshots saved to the repo root (never commit)
+/*.png
 
 # Architecture notes (ADRs, etc.)
 .docs/
@@ -39,7 +36,7 @@ lific.db-shm
 lific.db-wal
 .lific.json
 
-# Dev hot-reload (`pharos dev`)
+# Dev hot-reload (`harbor dev`)
 tmp/
 
 # GoReleaser build output
@@ -49,5 +46,3 @@ dist/
 # the icon + version info without running gen-winres.sh.
 # Regenerate with: ./scripts/gen-winres.sh [version]
 tmp_serve/
-library-home.png
-page-view-full.png

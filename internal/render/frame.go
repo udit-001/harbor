@@ -28,7 +28,7 @@ func sidebarHeader(f Frame) string {
 	return `<div class="flex items-center gap-2.5 px-5 py-3 border-b border-slate-200 sidebar-header">
       <a href="/" class="flex items-center gap-2 min-w-0 flex-1 text-sm font-semibold text-slate-800 hover:text-slate-600 no-underline">
         ` + logoSVG() + `
-        <span class="sidebar-brand-text truncate">Pharos</span>
+        <span class="sidebar-brand-text truncate">Harbor</span>
       </a>
 
     </div>`
@@ -225,13 +225,13 @@ func frameContentClass(isFrame bool) string {
 	return ""
 }
 
-// topbarCenterBranding returns the Pharos branding centered in the topbar,
+// topbarCenterBranding returns the Harbor branding centered in the topbar,
 // only on the dashboard where the sidebar is hidden.
 func topbarCenterBranding(f Frame) string {
 	if f.ActiveWS != "" {
 		return ""
 	}
-	return `<a href="/" class="topbar-brand flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-slate-600 no-underline">` + logoSVG() + `Pharos</a>`
+	return `<a href="/" class="topbar-brand flex items-center gap-2 text-sm font-semibold text-slate-800 hover:text-slate-600 no-underline">` + logoSVG() + `Harbor</a>`
 }
 
 // topbarMenuButton returns the mobile hamburger button, only when a sidebar exists.

@@ -1,10 +1,10 @@
-// Pharos service worker — caches the app shell + stopped page.
+// Harbor service worker — caches the app shell + stopped page.
 // The app is server-backed (SQLite + Go), so "offline" means "server not
 // running," not "no network." The SW guards origin identity: if a foreign
 // app occupies the port, the sentinel check falls back to the cached
 // stopped page instead of rendering the foreign response.
 
-var CACHE = 'pharos-v3';
+var CACHE = 'harbor-v3';
 
 var PRECACHE = [
   '/css/app.css',
@@ -39,7 +39,7 @@ self.addEventListener('activate', function(e) {
   );
 });
 
-var SENTINEL = '<meta name="pharos-app" content="1">';
+var SENTINEL = '<meta name="harbor-app" content="1">';
 
 self.addEventListener('fetch', function(e) {
   var req = e.request;

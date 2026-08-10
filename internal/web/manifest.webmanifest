@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Pharos",
-  "short_name": "Pharos",
+  "name": "Harbor",
+  "short_name": "Harbor",
   "description": "AI-guided learning workspaces",
   "start_url": "/",
   "scope": "/",

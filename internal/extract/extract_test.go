@@ -174,8 +174,8 @@ func TestFromMarkdown_InlineFormatting(t *testing.T) {
 		{
 			// Quirk: link replacement writes a trailing space, leaving a double space with following text.
 			name:  "link keeps text (double-space quirk)",
-			input: "see [Pharos docs](https://example.com) here",
-			want:  "see Pharos docs  here",
+			input: "see [Harbor docs](https://example.com) here",
+			want:  "see Harbor docs  here",
 		},
 		{
 			name:  "image keeps alt text (double-space quirk)",

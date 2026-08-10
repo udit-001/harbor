@@ -84,7 +84,7 @@ func TestPageWrapsContentInFrame(t *testing.T) {
 	if !strings.Contains(strings.ToLower(out), "<!doctype html>") {
 		t.Errorf("expected doctype, got:\n%s", out)
 	}
-	if !strings.Contains(out, "<title>My Page — Pharos</title>") {
+	if !strings.Contains(out, "<title>My Page — Harbor</title>") {
 		t.Errorf("expected title tag, got:\n%s", out)
 	}
 	if !strings.Contains(out, "<p>BODY</p>") {
@@ -98,7 +98,7 @@ func TestPageDashboardNoSidebar(t *testing.T) {
 	if strings.Contains(out, "<aside") {
 		t.Errorf("expected no sidebar on dashboard, got:\n%s", out)
 	}
-	if !strings.Contains(out, "Pharos") {
+	if !strings.Contains(out, "Harbor") {
 		t.Errorf("expected branding in topbar, got:\n%s", out)
 	}
 }

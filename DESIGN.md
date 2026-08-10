@@ -1,4 +1,4 @@
-# DESIGN.md — Pharos Visual System
+# DESIGN.md — Harbor Visual System
 
 > Extracted from the codebase by `$impeccable extract`. Captures every committed
 > design decision so future work stays on-brand. Source files are cited as
@@ -10,7 +10,7 @@
 
 ## 1. Design idea at a glance
 
-Pharos is a **Nord-themed, reading-first learning dashboard**. The aesthetic is
+Harbor is a **Nord-themed, reading-first learning dashboard**. The aesthetic is
 *tool-native restraint*: a cool, low-chroma slate palette (the [Nord](https://www.nordtheme.com)
 color system) carried through every surface — dashboard chrome, lesson iframes,
 diagrams, charts, and code — so embedded content feels integral rather than
@@ -35,7 +35,7 @@ focused study.
 ## 2. Color — the Nord palette
 
 The palette is [Nord](https://www.nordtheme.com) (hex, not OKLCH). It is a
-16-color arctic, north-bluish palette built from four named groups. Pharos maps
+16-color arctic, north-bluish palette built from four named groups. Harbor maps
 them to semantic Tailwind-style token names.
 
 ### 2.1 Semantic roles
@@ -60,7 +60,7 @@ them to semantic Tailwind-style token names.
 > Nord's four groups: Polar Night (`#2e3440 #3b4252 #434c5e #4c566a`),
 > Snow Storm (`#d8dee9 #e5e9f0 #eceff4 #f8fafc`), Frost
 > (`#8fbcbb #88c0d0 #81a1c1 #5e81ac`), Aurora (`#bf616a #d08770 #ebcb8b #a3be8c #b48ead`).
-> Pharos leans on Frost (nord9 `#5e81ac` as the single accent) and uses Aurora
+> Harbor leans on Frost (nord9 `#5e81ac` as the single accent) and uses Aurora
 > hues only inside diagrams (`cScale0..12` in `mermaid-theme.js:31-43`).
 
 ### 2.2 The two token vocabularies (extraction note)
@@ -135,7 +135,7 @@ WCAG AA is enforced by construction:
 Source: `frame.templ:32-65`, `frame.go:255-292`.
 
 - **Sidebar:** `fixed md:relative`, 240px wide, collapses to 60px icon-rail
-  (`web/input.css:391-433`). State persists in `localStorage('pharos_sidebar_collapsed')`.
+  (`web/input.css:391-433`). State persists in `localStorage('harbor_sidebar_collapsed')`.
   Section collapse state persists per-workspace-per-section
   (`frame.templ:187-201`).
 - **Topbar:** `min-h-12 px-4 md:px-6 py-2.5 bg-stone-50 border-b`. Holds
@@ -241,7 +241,7 @@ A consistent recipe: centered, `py-20`/`p-10`, a `bigIcon` (40–48px Lucide in
 `text-slate-300`), a one-line title + helper, and a *prompt block* showing the
 exact agent command to run (e.g. `"Teach me about topic"` in a `bg-slate-100`
 code chip). The empty state *teaches the user how to fill it* — a core
-product idea, since Pharos is agent-driven.
+product idea, since Harbor is agent-driven.
 
 ### 5.8 Quiz review (`views.templ:286-344`, `views.go:83-125`)
 
@@ -330,7 +330,7 @@ on toggle (no cached SVG). KaTeX needs no retint — it inherits `currentColor`.
   (`views.go:199-205`), in `text-slate-300`.
 - **Logo:** a **constellation node network** — a central filled circle with 4
   satellite nodes connected by lines (`icons.go:102-117`, inline 28px). The
-  full-res `design/logos/pharos-logo.svg` is a 23-ray compass/ Pharos-lighthouse
+  full-res `design/logos/harbor-logo.svg` is a 23-ray compass/ Harbor-lighthouse
   emanation. The logo carries the product metaphor: a beacon mapping knowledge
   nodes.
 - **Chevrons:** inline 14px in sidebar, rotated via `transform` JS, not
@@ -342,7 +342,7 @@ on toggle (no cached SVG). KaTeX needs no retint — it inherits `currentColor`.
 
 ### 8.1 The FOUC-prevention script
 
-A blocking inline `<script>` in `<head>` reads `localStorage('pharos_theme')`,
+A blocking inline `<script>` in `<head>` reads `localStorage('harbor_theme')`,
 resolves `'system'`/`null` via `matchMedia('(prefers-color-scheme:dark)')`, and
 sets `document.documentElement.dataset.theme` **before paint**
 (`frame.templ:29`). The same script runs in lesson iframes
@@ -377,10 +377,10 @@ iframes. The rendering stack is **on-demand and vendored per-workspace**:
 |---|---|---|---|
 | Base styles | `assets/style.css` (seeded) | CSS vars (auto) | (auto) |
 | Inter font | `assets/fonts/inter-latin.woff2` | — | (auto) |
-| Code highlight | `highlight.min.js` + `highlight.css` | Nord token CSS vars | `pharos asset add highlightjs` |
-| Math (KaTeX) | `katex.*` + `katex-render.js` | inherits `currentColor` | `pharos asset add katex` |
-| Diagrams (mermaid) | `mermaid.min.js` + `mermaid-theme.js` + lightbox | retint on toggle | `pharos asset add mermaid` |
-| Charts (vega-lite) | `vega*.min.js` + `vega-theme.js` | re-render from JSON | `pharos asset add vega` |
+| Code highlight | `highlight.min.js` + `highlight.css` | Nord token CSS vars | `harbor asset add highlightjs` |
+| Math (KaTeX) | `katex.*` + `katex-render.js` | inherits `currentColor` | `harbor asset add katex` |
+| Diagrams (mermaid) | `mermaid.min.js` + `mermaid-theme.js` + lightbox | retint on toggle | `harbor asset add mermaid` |
+| Charts (vega-lite) | `vega*.min.js` + `vega-theme.js` | re-render from JSON | `harbor asset add vega` |
 | Copy code | `copy-code.js` (seeded) | — | (auto) |
 | Glossary tooltips | `glossary-tooltip.js` (seeded) | CSS vars | (auto) |
 
@@ -451,7 +451,7 @@ These are *observed duplications*, not yet refactored. Each is a candidate for
 | Icons + logo | `internal/render/icons.go` |
 | Lesson iframe stylesheet | `internal/db/seed/style.css` |
 | Mermaid Nord theme | `internal/cli/mermaid-theme.js` |
-| Theme toggle JS | `internal/web/pharos-theme.js` |
+| Theme toggle JS | `internal/web/harbor-theme.js` |
 | Embed registry | `internal/cli/asset_registry.go` |
 | Theme doc (lessons) | `internal/skills/teach/PAGE-THEME.md` |
-| Logo assets | `design/logos/pharos-logo.svg` |
+| Logo assets | `design/logos/harbor-logo.svg` |

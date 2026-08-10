@@ -27,7 +27,7 @@ knowledge — then study it without distraction.*
 
 ## Product Purpose
 
-Pharos is a CLI tool with a read-only web dashboard for AI-guided learning
+Harbor is a CLI tool with a read-only web dashboard for AI-guided learning
 workspaces. An AI agent (via the `teach` skill) creates a workspace around a
 topic and scaffolds its contents — lessons, learning records, references, a
 glossary, and quizzes — and the dashboard is where the human studies them.

@@ -32,7 +32,7 @@ type Config struct {
 // The port is an identity decision, not a convenience: a pinned PWA shortcut
 // records this exact origin. If the port is held by another process, Start
 // fails rather than silently rebinding to a different port (which would break
-// the pin or, worse, render a foreign app inside the Pharos window).
+// the pin or, worse, render a foreign app inside the Harbor window).
 //
 // The mux is a separate seam (NewMux) so tests can drive routes through
 // httptest without booting a real listener.

@@ -7,7 +7,7 @@ templ iframeNotFoundPage(kind, ident string) {
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<title>Not found</title>
-			<script>(function(){var t=localStorage.getItem('pharos_theme');if(!t||t==='system'){t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.dataset.theme=t})()</script>
+			<script>(function(){var t=localStorage.getItem('harbor_theme');if(!t||t==='system'){t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.dataset.theme=t})()</script>
 			<style>
 				:root {
 					--bg: #eceff4;
@@ -74,7 +74,7 @@ templ iframeNotFoundPage(kind, ident string) {
 					<path d="M15 12H3"/>
 				</svg>
 			<h1>This { kind } can’t be found</h1>
-			<p>The workspace still tracks this { kind }, but its file is missing — it may have been moved or deleted outside pharos. Ask your agent to regenerate it.</p>
+			<p>The workspace still tracks this { kind }, but its file is missing — it may have been moved or deleted outside harbor. Ask your agent to regenerate it.</p>
 				<code>{ ident }</code>
 			</div>
 		</body>

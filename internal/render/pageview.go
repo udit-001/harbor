@@ -28,6 +28,7 @@ func PageView(d PageViewData) string {
 	b.WriteString(`<!doctype html><html lang="en"><head><meta charset="utf-8">`)
 	b.WriteString(`<meta name="viewport" content="width=device-width, initial-scale=1">`)
 	b.WriteString(`<title>` + esc(d.Title) + ` — harbor</title>`)
+	b.WriteString(`<script>(function(){try{var t=localStorage.getItem('harbor_theme');if(!t||t==='system'){t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='light'}})();</script>`)
 	b.WriteString(pageViewCSS())
 	b.WriteString(`</head><body data-slug="` + e(d.Slug) + `">`)
 	b.WriteString(pageViewHeader(d))
@@ -76,18 +77,44 @@ func pageViewScript(d PageViewData) string {
 (function(){
   const slug=document.body.dataset.slug;
   const KEY='harbor_view_'+slug;
+  const pv=document.getElementById('pv');
   let mode=localStorage.getItem(KEY)||'container';
-  const apply=()=>{ document.body.classList.toggle('full', mode==='full'); };
-  apply();
+  // sync() sets the envelope mode AND the header state together, so toggling to
+  // full immediately slides the floating header away (no stuck overlap) and, while
+  // hidden, drops pointer-events so it never blocks the page's top strip. The
+  // header re-enters on hover along the same path.
+  const sync=()=>{
+    const full=(mode==='full');
+    document.body.classList.toggle('full', full);
+    hide();
+  };
+  function show(){ if(mode==='full') pv.classList.add('is-visible'); }
+  function hide(){ pv.classList.remove('is-visible'); }
+  sync();
   document.getElementById('modeBtn').addEventListener('click',()=>{
     mode=(mode==='full')?'container':'full';
     localStorage.setItem(KEY,mode);
-    apply(); // envelope only — iframe src untouched, page not reloaded
+    sync(); // envelope only — iframe src untouched, page not reloaded
   });
-  const pv=document.getElementById('pv');
-  document.body.addEventListener('mouseenter',()=>{ if(mode==='full') pv.style.opacity=1; });
-  document.body.addEventListener('mouseleave',()=>{ if(mode==='full') pv.style.opacity=0; });
-  if(mode==='full') pv.style.opacity=0;
+  // Reveal on hovering the top "peek" band; dismissing chrome on peek-away.
+  document.body.addEventListener('mouseenter', show);
+  document.body.addEventListener('mouseleave', hide);
+  // In full mode the iframe fills the viewport, so interacting with or scrolling
+  // the content must dismiss the header (the pointer lives inside the iframe,
+  // not the outer body). Same-origin: attach capture listeners on the iframe's
+  // contentWindow — always available, and they catch events from within the
+  // loaded document without depending on document-readiness timing.
+  const PEEK=60;
+  function wireFrame(){
+    var w;
+    try{ w=document.getElementById('frame').contentWindow; }catch(_){ return; }
+    if(!w) return;
+    w.addEventListener('scroll', hide, true);
+    w.addEventListener('pointerdown', hide, true);
+    w.addEventListener('keydown', hide, true);
+    w.addEventListener('mousemove', function(e){ if(e.clientY<PEEK) show(); else hide(); }, true);
+  }
+  wireFrame();
 })();</script>`
 }
 
@@ -109,7 +136,12 @@ func pageViewCSS() string {
 :root{--bg:#eceff4;--surface:#fff;--surface2:#f6f8fb;--border:#d8dee9;--hair:#e5e9f0;
 --text:#4c566a;--muted:#8891a0;--strong:#2e3440;--acc:#5e81ac;--acc-soft:#e0e7ff;
 --ok:#4a7a2e;--ok-soft:#e6f0e6;--warn:#d08770;--warn-soft:#fadfd2;--arch:#8891a0;--arch-soft:#eceff4;
+--font:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
 --rs:6px;--ease:cubic-bezier(.23,1,.32,1)}
+[data-theme="dark"]{
+--bg:#2e3440;--surface:#3b4252;--surface2:#434c5e;--border:#4c566a;--hair:#3b4252;
+--text:#d8dee9;--muted:#81a1c1;--strong:#eceff4;--acc:#88c0d0;--acc-soft:rgba(136,192,208,.18);
+--ok:#a3be8c;--ok-soft:rgba(163,190,140,.16);--warn:#d08770;--warn-soft:rgba(208,135,112,.16);--arch:#81a1c1;--arch-soft:rgba(129,161,193,.16)}
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
 background:var(--bg);color:var(--text);font-size:15px}
@@ -127,19 +159,28 @@ a{text-decoration:none;color:inherit}
 .badge.arch{color:var(--arch);background:var(--arch-soft)}
 .tag{font-size:11.5px;color:var(--muted);background:var(--surface);border:1px solid var(--hair);border-radius:4px;padding:0 6px}
 .icon-btn{border:1px solid transparent;background:transparent;color:var(--muted);width:32px;height:32px;border-radius:var(--rs);
-display:grid;place-items:center;transition:color .1s}
-a.icon-btn:hover{color:var(--strong);background:var(--surface2)}
-.icon-btn.disabled{opacity:.35}
-.wrap{height:calc(100vh - 52px)}
-#frame{width:100%;height:100%;border:0;background:#fff}
-/* container: page in a centered readable column */
-body:not(.full) .wrap{height:calc(100vh - 52px);padding:18px 24px 40px;overflow:auto}
-body:not(.full) #frame{max-width:900px;display:block;margin:0 auto;border:1px solid var(--border);border-radius:8px;height:calc(100% - 20px)}
-/* full: edge-to-edge, header pinned top and auto-hides */
+display:grid;place-items:center;transition:color .1s;cursor:pointer}
+.icon-btn:hover{color:var(--strong);background:var(--surface2)}
+.icon-btn:disabled,.icon-btn.disabled{opacity:.35}
+.wrap{height:calc(100vh - 52px);transition:height .35s var(--ease)}
+#frame{width:100%;height:100%;border:0;background:#fff;transition:height .35s var(--ease)}
+/* container (default): the page fills the column below the header, edge-to-edge
+   and seamless — like a harbor frame page living inside the shell. The header
+   stays visible (sticky). */
+body:not(.full) .pv{position:sticky;top:0;z-index:10}
+/* full: the page fills the whole viewport, and the header becomes a floating
+   bar that slides in from the top on intent (hover) and auto-hides — entering
+   and leaving along the same symmetric path, so it never snaps over content. */
 body.full .wrap{height:100vh}
 body.full #frame{height:100vh}
-body.full .pv{position:fixed;top:0;left:0;right:0;z-index:10;opacity:0;
-transform:translateY(-6px);transition:opacity .15s var(--ease),transform .15s var(--ease)}
-@media(prefers-reduced-motion:reduce){body.full .pv{transition:none}}
+body.full .pv{position:fixed;top:0;left:0;right:0;z-index:10;background:var(--surface);
+transform:translateY(-100%);opacity:0;pointer-events:none;
+transition:transform .25s var(--ease),opacity .25s var(--ease)}
+body.full .pv.is-visible{transform:translateY(0);opacity:1;pointer-events:auto}
+/* Reduced motion: cross-fade the header instead of sliding it, no height snap. */
+@media(prefers-reduced-motion:reduce){
+.wrap,#frame{transition:none}
+body.full .pv{transition:opacity .2s ease;transform:none}
+}
 </style>`
 }

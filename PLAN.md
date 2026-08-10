@@ -6,7 +6,7 @@ browse, search, review, and comment. Landing a page costs one command; finding i
 again later costs one search.
 
 > Product name: **harbor** (single canonical spelling; never "harbour").
-> This repo is the result of **Option 1**: rework the Pharos codebase — reuse
+> This repo is the result of **Option 1**: rework the Harbor codebase — reuse
 > its plumbing (cobra/templ/FTS/iframe-frame-mode), strip the learning-only
 > surface, and rebuild the domain model around `pages`.
 
@@ -32,17 +32,17 @@ again later costs one search.
    managed store — safe from temp wipes, away from project pollution.
 4. **Findability by provenance.** Every page carries enough "what/where/why" to
    resurface later, for both a human and a future agent session.
-5. **Calm, focused, expert.** No dopamine theater (inherited from Pharos).
+5. **Calm, focused, expert.** No dopamine theater (inherited from Harbor).
 6. **Empty states teach the next command,** so the tool is one prompt from useful.
 
-Dropped from Pharos entirely: in-page theme toggle, iframe theme-sync, seeded
+Dropped from Harbor entirely: in-page theme toggle, iframe theme-sync, seeded
 `seed/style.css`, Nord token duality in the page path, lessons/quizzes/records/
 missions/glossary, mermaid/vega/katex/highlight assets, and the in-page tooling
 that wraps agent content in a styled container.
 
 ## 3. Conceptual model & vocabulary
 
-First-class objects (own terms, not Pharos's):
+First-class objects (own terms, not Harbor's):
 
 | Object | Definition | Key attributes |
 |---|---|---|
@@ -112,7 +112,7 @@ Deterministic behaviors:
 
 - **Two zones:** the *Library* (decide: browse/search/filter) and the *Page*
   (consume). Chrome is the Library's job; the page is the product.
-- **Opening a page** renders it in a **neutral, full-bleed iframe** (Pharos
+- **Opening a page** renders it in a **neutral, full-bleed iframe** (Harbor
   "frame mode"): page as designed, no restyle, no injected chrome. Same-origin
   so the shell can read the page DOM.
 - **View modes** (CodePen-style, per-page, `localStorage` keyed by slug):
@@ -124,7 +124,7 @@ Deterministic behaviors:
   - `prefers-reduced-motion` fallback on all transitions.
 - **Store per-page viewer preference in `localStorage`** (`{slug: mode}` +
   `defaultView = container` for never-opened pages). Toggling sets only that page.
-- Shell look = calm authority (Pharos/Nord heritage) but **only for the shell**;
+- Shell look = calm authority (Harbor/Nord heritage) but **only for the shell**;
   pages are untouched.
 
 ## 7. Feedback loop (M2) — no injection
@@ -142,7 +142,7 @@ Deterministic behaviors:
 - Tradeoff: pop-out (own tab) loses live walkthrough (shell has no reach) —
   accepted.
 
-## 8. Architecture & reuse map (from Pharos)
+## 8. Architecture & reuse map (from Harbor)
 
 **Reuse (adapt):** cobra CLI + per-command files (`internal/cli/`); `templ`
 rendering (`internal/render/`); SQLite store seam (`internal/db/` — the
@@ -155,7 +155,7 @@ pattern; `Page`-file-on-disk + `body_text` FTS extraction (`internal/extract`).
 **Strip:** `lessons`/`quizzes`/`learning_records`/`references`/`glossary_terms`/
 `source_docs`; `mission`; `asset add` for mermaid/vega/katex/highlight;
 `mermaid-theme.js`/`vega-theme.js`/`katex-render.js`/`glossary-tooltip.js`;
-theme-sync JS (`pharos-theme.js`) + in-page seed stylesheet; quiz/attempt/record
+theme-sync JS (`harbor-theme.js`) + in-page seed stylesheet; quiz/attempt/record
 commands + views; any `data-theme`/`postMessage` page-path code.
 
 **Add:** `pages`/`workspaces`/`comments`/`changes` tables + stores; view-mode
@@ -164,13 +164,13 @@ workspace/tag/status filters + search; provenance capture on `page add`;
 `comments list/watch/update`; skill for the agent; `page`/`workspace`/`comments`
 command groups; static-export (stretch, v2).
 
-**Rename:** module `github.com/udit-001/pharos` → `github.com/udit-001/harbor`
-(placeholder); binary `pharos` → `harbor`; select `internal/*` naming.
+**Rename:** module `github.com/udit-001/harbor` → `github.com/udit-001/harbor`
+(placeholder); binary `harbor` → `harbor`; select `internal/*` naming.
 
 ## 9. Milestones
 
 ### M1 — Core library (usable now)
-1. Set up module/rename; copy Pharos tree; strip learning-only files & commands.
+1. Set up module/rename; copy Harbor tree; strip learning-only files & commands.
 2. Build `pages`/`workspace`/`tag` stores + migrations; rework scrap+tag stores.
 3. `harbor workspace …` group (+ fail-fast required for `page add`).
 4. `harbor page add/list/read/update/delete/delete`; provenance capture; FTS
@@ -192,7 +192,7 @@ command groups; static-export (stretch, v2).
 - Optional per-page `referenced` disposition if a project should own the artifact.
 
 ## 10. Open next steps
-- Git-init `html-organizer`; copy Pharos tree as the starting skeleton.
+- Git-init `html-organizer`; copy Harbor tree as the starting skeleton.
 - Confirm module path (placeholder `github.com/udit-001/harbor`) before pushing.
 - Define exact DB schema + migration versioning in the first M1 increment.
 - Wire the `harbor` skill name + canonical-spelling rule into the agent skill.

@@ -199,15 +199,21 @@ func TestLibraryListsSeededPages(t *testing.T) {
 		t.Error("draft filter should show the draft page")
 	}
 
-	// Live-search fragment endpoint returns the row by body text.
-	frag := env.get(t, "/api/pages?q=revenue+hero").Body.String()
-	if !strings.Contains(frag, "Revenue Deep Dive") {
-		t.Errorf("live search fragment missing page: %s", frag)
+	// /api/pages serves the full dataset as JSON for client-side filtering —
+	// unfiltered, so the browser can narrow status/search/workspace/tag locally.
+	buf := env.get(t, "/api/pages")
+	ct := buf.Header().Get("Content-Type")
+	if !strings.HasPrefix(ct, "application/json") {
+		t.Errorf("/api/pages content-type = %q, want application/json", ct)
 	}
-	// And the empty-state fragment for a no-match query.
-	fragEmpty := env.get(t, "/api/pages?q=zzzqqq").Body.String()
-	if !strings.Contains(fragEmpty, "No pages yet") {
-		t.Errorf("empty fragment missing empty state: %s", fragEmpty)
+	bodyJSON := buf.Body.String()
+	for _, want := range []string{`"slug":"revenue-deep-dive"`, "Revenue Deep Dive", `"workspace":"alpha"`, `"status":"draft"`, `"finance"`} {
+		if !strings.Contains(bodyJSON, want) {
+			t.Errorf("/api/pages JSON missing %q in: %s", want, bodyJSON)
+		}
+	}
+	if strings.Contains(bodyJSON, "<div") {
+		t.Errorf("/api/pages should return JSON, not HTML, got: %s", bodyJSON)
 	}
 }
 

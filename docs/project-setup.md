@@ -9,16 +9,16 @@
 ```bash
 # Clone the repo
 git clone <repo-url>
-cd pharos
+cd harbor
 
 # Download the Tailwind CLI binary (one-time)
-pharos tailwind download
+harbor tailwind download
 
 # Build the binary (rebuilds CSS + compiles Go)
-pharos build
+harbor build
 
 # Go-only build (skip CSS rebuild)
-pharos build --no-css
+harbor build --no-css
 
 # Or install directly to GOPATH/bin
 make install
@@ -48,7 +48,7 @@ internal/
 │   ├── list.go           # runList[T] generic list helper
 │   ├── inject_test.go    # CLI tested against in-memory SQLite
 │   └── *_create.go       # --body-file for safe multiline content creation
-├── config/         # pharos.toml config (data_dir, etc.)
+├── config/         # harbor.toml config (data_dir, etc.)
 ├── db/             # Data access layer — SQLite via sqlx, typed query methods
 │   ├── models.go         # Domain structs (Workspace, Lesson, etc.)
 │   ├── workspace_store.go # Scoped store bound to one workspace
@@ -71,8 +71,8 @@ internal/
 ├── urls/           # URL scheme — one owner for workspace/lesson/record/ref paths
 ├── version/        # Version detection (ldflags or debug.BuildInfo + VCS)
 ├── web/            # Embedded CSS + favicon (generated, committed)
-└── skills/         # Bundled teach skill (installed via pharos skills install)
-    └── teach/            # SKILL.md + FORMAT docs + pharos CLI reference
+└── skills/         # Bundled teach skill (installed via harbor skills install)
+    └── teach/            # SKILL.md + FORMAT docs + harbor CLI reference
 ```
 
 ### Key Design Decisions

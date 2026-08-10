@@ -97,7 +97,7 @@ func NewMux(store *db.Store, dataDir string, devCSS bool) *http.ServeMux {
 	mux.HandleFunc("GET /api/workspaces/{id}", jsonHandler(handleGetWorkspace(store)))
 	mux.HandleFunc("GET /api/stats", jsonHandler(handleStats(store)))
 	mux.HandleFunc("GET /api/search", jsonHandler(handleSearch(store)))
-	mux.HandleFunc("GET /api/pages", handleListFragment(store))
+	mux.HandleFunc("GET /api/pages", jsonHandler(handlePagesJSON(store)))
 
 	// App pages
 	mux.HandleFunc("GET /", handleAppShell(store))
@@ -250,15 +250,17 @@ func handleAppShell(store *db.Store) http.HandlerFunc {
 	}
 }
 
-// handleListFragment serves the library list fragment (rows or empty state) for
-// the live-search box: ?q=… plus the current status/workspace/tag narrowings.
-func handleListFragment(store *db.Store) http.HandlerFunc {
+// handlePagesJSON serves the complete page list as JSON — the dataset the
+// library's client-side filters (status pills, search, sidebar workspace/tag)
+// run against in the browser. No filtering here: the client holds the full set
+// and narrows it locally for instant feedback without reloads.
+func handlePagesJSON(store *db.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		filter := pageFilterFromQuery(r)
-		q := r.URL.Query().Get("q")
-		rows := libraryRows(store, filter, q)
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write([]byte(render.LibraryRows(rows, filterQueryString(filter, q))))
+		rows := libraryRows(store, db.PageFilter{}, "")
+		if rows == nil {
+			rows = []render.PageRow{}
+		}
+		jsonResponse(w, rows)
 	}
 }
 

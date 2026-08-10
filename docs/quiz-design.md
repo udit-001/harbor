@@ -1,4 +1,4 @@
-# Quiz UI Design — Pharos
+# Quiz UI Design — Harbor
 
 ## Design principle
 

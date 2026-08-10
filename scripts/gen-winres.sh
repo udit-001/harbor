@@ -9,13 +9,13 @@
 #   ./scripts/gen-winres.sh                 # use winres/winres.json as-is
 #   ./scripts/gen-winres.sh 0.3.0           # patch version into winres.json first
 #
-# The .syso files are written to cmd/pharos/ and auto-linked by the Go toolchain
+# The .syso files are written to cmd/harbor/ and auto-linked by the Go toolchain
 # for windows/* targets. Non-Windows builds ignore them.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WINRES_JSON="$ROOT/winres/winres.json"
-OUT_DIR="$ROOT/cmd/pharos"
+OUT_DIR="$ROOT/cmd/harbor"
 
 # Ensure go-winres is available (check GOPATH/bin too, since CI may not have it on PATH)
 GOPATH_BIN="$(go env GOPATH)/bin"
@@ -45,12 +45,12 @@ if [[ $# -ge 1 ]]; then
         "info": {
           "0409": {
             "CompanyName": "udit-001",
-            "FileDescription": "Pharos",
+            "FileDescription": "Harbor",
             "FileVersion": "$VERSION",
-            "InternalName": "pharos",
+            "InternalName": "harbor",
             "LegalCopyright": "MIT License",
-            "OriginalFilename": "pharos.exe",
-            "ProductName": "Pharos",
+            "OriginalFilename": "harbor.exe",
+            "ProductName": "Harbor",
             "ProductVersion": "$VERSION"
           }
         }
@@ -59,14 +59,14 @@ if [[ $# -ge 1 ]]; then
   },
   "RT_GROUP_ICON": {
     "#1": {
-      "0000": "pharos.ico"
+      "0000": "harbor.ico"
     }
   },
   "RT_MANIFEST": {
     "#1": {
       "0409": {
         "identity": {
-          "name": "Pharos",
+          "name": "Harbor",
           "version": "$QUAD"
         },
         "description": "CLI + read-only web dashboard for AI-guided learning workspaces",

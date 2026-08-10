@@ -1,85 +1,86 @@
-# Pharos
+# Harbor
 
-CLI tool for AI-guided learning workspaces, with a read-only web dashboard for taking quizzes and browsing lessons.
+A CLI tool to organize and find the HTML pages your agent builds — plus a
+read-only web dashboard to browse and open them.
+
+Pages are imported once, grouped into **workspaces**, labeled with a status and
+tags, and full-text indexed so you can search everything you've collected.
 
 ## Quick start
 
 ```bash
-go install github.com/udit-001/pharos/cmd/pharos@latest
-pharos init                            # create database, install teach skill
-pharos workspace create "Topic Name"   # creates ~/.pharos/workspaces/topic-name/
-pharos start                           # open the web dashboard (:9090)
+go install github.com/udit-001/harbor/cmd/harbor@latest
+
+harbor init                            # create config + database in ~/.harbor
+harbor workspace create "Payroll App"  # a workspace to group related pages
+harbor page add dashboard.html \
+  --workspace "Payroll App" \
+  --description "monthly totals chart" \
+  --tag finance
+harbor start                           # open the web dashboard on :9090
 ```
 
-Install the teach skill so your AI agent can drive the workflow:
+## What you collect
 
-```bash
-pharos skills install               # auto-detects your agent
-```
+A **page** is a self-contained HTML artifact your agent produced:
 
-Then ask your agent: *"teach me about [topic]"* — it creates lessons, quizzes, and tracks your progress.
+- Imported into a managed store — safe from temp wipes and project folders
+- Kept **byte-for-byte** as the agent wrote it
+- Carries provenance (description + context — where it came from and why it exists)
+- Belongs to exactly **one workspace** and any number of **tags**
+- Labeled **draft / published / archived**
 
-## How learning works
-
-Pharos builds a **workspace** per topic. Each workspace has:
-
-- **Mission** — why you're learning this
-- **Lessons** — self-contained HTML, authored by your AI agent
-- **Quizzes** — retrieval practice (choice and recall questions)
-- **Learning records** — ADR-style notes of what you understood
-- **References** — cheat sheets
-- **Glossary** — canonical terminology with in-lesson tooltips
-
-The loop: lessons teach, quizzes test, weak questions drive the next lesson.
+A **workspace** is a named body of work pages belong to. It's a directory under
+`~/.harbor/workspaces/` seeded with `MISSION.md`, `RESOURCES.md`, `NOTES.md`
+plus `lessons/`, `learning-records/`, `reference/` and `assets/` scaffold.
 
 ## Web dashboard
 
-`pharos start` opens a read-only dashboard where you:
+`harbor start` opens the dashboard on `http://127.0.0.1:9090`:
 
-- Browse lessons, records, and references
-- **Take quizzes** with instant feedback and review
-- Search across all content
-- Toggle light/dark/system theme
+- Sidebar of **workspaces** and **tags** with page counts
+- **Status** filter (All / Draft / Published / Archived) as a pill switch
+- **Live search** across titles, tags, and descriptions — all filtering is
+  client-side, no page reloads
+- A **page view** with container ⇄ full modes and prev/next within the current set
+- Light / dark theme toggle, persisted per browser
 
-## Quizzes
+## Commands
 
-Two question modes:
-
-- **Choice** — select an option, get graded instantly
-- **Recall** — flip a flashcard, self-grade (Got it / Not yet)
-
-Enable auto-submit to skip the Check button on choice questions:
-
-```bash
-pharos config set auto_submit_choice on
 ```
-
-Track weak spots:
-
-```bash
-pharos quiz list --weak          # quizzes by lowest accuracy
-pharos question list --weak      # specific questions dragging you down
-```
-
-## Configuration
-
-```bash
-pharos config read                          # show current settings
-pharos config set data_dir ~/my-pharos      # move the data directory
-pharos config set auto_submit_choice on      # auto-submit on option select
+harbor init        # set up config + database
+harbor workspace   # create / list / rename / delete workspaces
+harbor page        # add / list / read / update / delete pages
+harbor scrap       # global scratchpad scraps
+harbor tag         # manage tags (name + semantic description)
+harbor search      # full-text search across pages
+harbor config      # read / set configuration
+harbor start|stop  # run the web dashboard
+harbor skills      # manage agent skills for this project
+harbor migrate     # database migrations
+harbor upgrade     # upgrade harbor to the latest release
 ```
 
 ## Data & privacy
 
-All data is local — SQLite at `~/.pharos/pharos.db`, workspace files under `~/.pharos/workspaces/`. No telemetry, no accounts, no cloud.
+All data is local: SQLite at `~/.harbor/harbor.db`, pages in the managed store
+under the data directory. No telemetry, no accounts, no cloud.
 
-## Maintenance
+## Development
 
 ```bash
-pharos upgrade          # upgrade to latest release
-pharos migrate status   # check database migrations
+make test            # go test ./... (real SQLite temp files, no mocks)
+harbor build         # rebuild CSS + Go binary into bin/harbor
+harbor dev           # hot-reload dev server on :9090
 ```
 
-## Docs
+## Releases
 
-[CLI reference](docs/cli-reference.md) · [Project setup](docs/project-setup.md)
+Tag a version to trigger the GitHub release workflow:
+
+```bash
+git tag v0.1.0 && git push --tags
+```
+
+GoReleaser (`.goreleaser.yaml`) cross-compiles linux/darwin/windows ×
+amd64/arm64 and produces archives, a checksums file, and Linux packages.

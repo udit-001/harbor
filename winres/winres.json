@@ -9,12 +9,12 @@
         "info": {
           "0409": {
             "CompanyName": "udit-001",
-            "FileDescription": "Pharos",
+            "FileDescription": "Harbor",
             "FileVersion": "0.9.3-next",
-            "InternalName": "pharos",
+            "InternalName": "harbor",
             "LegalCopyright": "MIT License",
-            "OriginalFilename": "pharos.exe",
-            "ProductName": "Pharos",
+            "OriginalFilename": "harbor.exe",
+            "ProductName": "Harbor",
             "ProductVersion": "0.9.3-next"
           }
         }
@@ -23,14 +23,14 @@
   },
   "RT_GROUP_ICON": {
     "#1": {
-      "0000": "pharos.ico"
+      "0000": "harbor.ico"
     }
   },
   "RT_MANIFEST": {
     "#1": {
       "0409": {
         "identity": {
-          "name": "Pharos",
+          "name": "Harbor",
           "version": "0.9.3.0"
         },
         "description": "CLI + read-only web dashboard for AI-guided learning workspaces",

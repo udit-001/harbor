@@ -11,22 +11,22 @@ templ document(f Frame, content string) {
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-			<title>{ f.Title } — Pharos</title>
+			<title>{ f.Title } — Harbor</title>
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg"/>
 	<link rel="icon" type="image/png" href="/favicon.png"/>
 	<link rel="icon" type="image/x-icon" href="/favicon.ico"/>
 	<link rel="manifest" href="/manifest.webmanifest"/>
-	<meta name="pharos-app" content="1"/>
+	<meta name="harbor-app" content="1"/>
 	<meta name="theme-color" id="theme-color" content="#eceff4"/>
 	<link rel="apple-touch-icon" href="/icon-192.png"/>
 	<meta name="apple-mobile-web-app-capable" content="yes"/>
-	<meta name="apple-mobile-web-app-title" content="Pharos"/>
+	<meta name="apple-mobile-web-app-title" content="Harbor"/>
 	<meta name="mobile-web-app-capable" content="yes"/>
 	<link rel="preconnect" href="https://fonts.googleapis.com"/>
 			<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
 			<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet"/>
 			<link rel="stylesheet" href="/css/app.css?v=20"/>
-			<script>(function(){var t=localStorage.getItem('pharos_theme');if(!t||t==='system'){t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.dataset.theme=t;var m=document.getElementById('theme-color');if(m)m.content=t==='dark'?'#2e3440':'#eceff4'})()</script>
+			<script>(function(){var t=localStorage.getItem('harbor_theme');if(!t||t==='system'){t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.dataset.theme=t;var m=document.getElementById('theme-color');if(m)m.content=t==='dark'?'#2e3440':'#eceff4'})()</script>
 		</head>
 		<body class="font-sans" data-active-ws={ f.ActiveWS } data-active-type={ f.ActiveType } data-active-seq={ fmt.Sprintf("%d", f.ActiveSeq) } data-active-slug={ f.ActiveSlug }>
 			<div class="flex h-screen overflow-hidden bg-white text-slate-800">
@@ -64,7 +64,7 @@ templ document(f Frame, content string) {
 			</main>
 		</div>
 		@templ.Raw(f.PaletteDataScript())
-		<div id="pharos-palette" class="palette-overlay">
+		<div id="harbor-palette" class="palette-overlay">
 			<div class="palette-panel" role="dialog" aria-label="Command palette">
 				<div class="palette-input-wrap">
 					<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
@@ -74,7 +74,7 @@ templ document(f Frame, content string) {
 				<div id="palette-results" class="palette-results" role="listbox"></div>
 			</div>
 		</div>
-		<script src="/js/pharos-theme.js?v=28"></script>
+		<script src="/js/harbor-theme.js?v=28"></script>
 			<script>
 				function toggleSidebar() {
 					var sb = document.getElementById('sidebar');
@@ -87,7 +87,7 @@ templ document(f Frame, content string) {
 				if (!sb) return;
 				sb.classList.add('sidebar-ready');
 				var isCollapsed = sb.classList.toggle('sidebar-collapsed');
-				try { localStorage.setItem('pharos_sidebar_collapsed', isCollapsed ? '1' : '0'); } catch(e) {}
+				try { localStorage.setItem('harbor_sidebar_collapsed', isCollapsed ? '1' : '0'); } catch(e) {}
 				if (!isCollapsed) closeSectionFlyout();
 			}
 			function openSectionFlyout(label) {
@@ -114,7 +114,7 @@ templ document(f Frame, content string) {
 				}
 				function onKey(e) { if (e.key === 'Escape') closeSectionFlyout(); }
 				function onMessage(e) {
-					if (e.data && e.data.type === 'pharos-frame-click') closeSectionFlyout();
+					if (e.data && e.data.type === 'harbor-frame-click') closeSectionFlyout();
 				}
 				flyout._close = close;
 				flyout._onKey = onKey;
@@ -167,7 +167,7 @@ templ document(f Frame, content string) {
 				// Restore sidebar collapsed state from localStorage
 				var sb = document.getElementById('sidebar');
 				var isCollapsed = false;
-				try { isCollapsed = localStorage.getItem('pharos_sidebar_collapsed') === '1'; } catch(e) {}
+				try { isCollapsed = localStorage.getItem('harbor_sidebar_collapsed') === '1'; } catch(e) {}
 				if (isCollapsed && sb) {
 					sb.classList.add('sidebar-collapsed');
 				}
@@ -412,7 +412,7 @@ templ document(f Frame, content string) {
 				// Both preserve scroll position of the region being refreshed.
 
 			// Reload the iframe for live-sync refresh. The iframe's own
-			// pharos-scroll.js bundle handles cross-session scroll persistence
+			// harbor-scroll.js bundle handles cross-session scroll persistence
 			// (save on scroll/visibilitychange, restore on load). This
 			// in-memory save/restore preserves scroll across the reload
 			// itself (immediate, same-tab).
@@ -487,7 +487,7 @@ templ document(f Frame, content string) {
 						return;
 					}
 
-					// "navigate" → agent-driven URL navigation (pharos nav).
+					// "navigate" → agent-driven URL navigation (harbor nav).
 					if (ev.type === 'navigate' && ev.url) {
 						location.href = ev.url;
 						return;
@@ -501,17 +501,17 @@ templ document(f Frame, content string) {
 			// navigation live in localStorage and affect only the no-query
 			// state. Suppressed on in-progress quiz attempt pages.
 			(function() {
-				var overlay = document.getElementById('pharos-palette');
+				var overlay = document.getElementById('harbor-palette');
 				if (!overlay) return;
 				var input = document.getElementById('palette-input');
 				var resultsEl = document.getElementById('palette-results');
-				var dataEl = document.getElementById('pharos-palette-data');
+				var dataEl = document.getElementById('harbor-palette-data');
 
 				var inlineItems = [];
 				try { inlineItems = JSON.parse(dataEl.textContent || '[]') || []; } catch(_) {}
 				var workspacesCache = null;
 
-				var RECENTS_KEY = 'pharos_recents';
+				var RECENTS_KEY = 'harbor_recents';
 				function loadRecents() {
 					try {
 						var list = JSON.parse(localStorage.getItem(RECENTS_KEY) || '[]');
@@ -546,7 +546,7 @@ templ document(f Frame, content string) {
 					var type = body.getAttribute('data-active-type') || '';
 					var entry = {
 						type: type || 'workspace',
-						title: document.title.replace(/ — Pharos$/, ''),
+						title: document.title.replace(/ — Harbor$/, ''),
 						url: location.pathname,
 						workspace: ws
 					};
@@ -876,7 +876,7 @@ templ document(f Frame, content string) {
 					if (e.key === 'Tab') { e.preventDefault(); return; }
 				});
 				window.addEventListener('message', function(e) {
-					if (e.data && e.data.type === 'pharos-open-palette') {
+					if (e.data && e.data.type === 'harbor-open-palette') {
 						if (isOpen()) close(); else {
 							open();
 							requestAnimationFrame(function() {
