@@ -65,6 +65,56 @@ type Tag struct {
 	UpdatedAt   string `db:"updated_at" json:"updatedAt"`
 }
 
+// CommentType is the set of valid comment anchor kinds.
+const (
+	CommentTypeSelection = "selection" // quoted text selection
+	CommentTypeElement   = "element"   // a specific element, anchored by selector
+	CommentTypeGeneral   = "general"   // page-level feedback, no anchor
+)
+
+// CommentStatus is the set of valid comment lifecycle states.
+const (
+	CommentStatusOpen       = "open"
+	CommentStatusInProgress = "in-progress"
+	CommentStatusDone       = "done"
+)
+
+// Comment is anchored human feedback on a page. The page file is never touched
+// — comments live here, keyed by page_id and (optionally) an anchor. Quote is
+// the selected text snippet; Anchor is the element's existing id or a stable
+// computed CSS selector. Status drives the derived open-feedback surface.
+type Comment struct {
+	ID         int64   `db:"id" json:"id"`
+	PageID     int64   `db:"page_id" json:"pageId"`
+	Anchor     string  `db:"anchor" json:"anchor"`
+	Quote      string  `db:"quote" json:"quote"`
+	Type       string  `db:"type" json:"type"`
+	Body       string  `db:"body" json:"body"`
+	Status     string  `db:"status" json:"status"`
+	CreatedAt  string  `db:"created_at" json:"createdAt"`
+	ResolvedAt *string `db:"resolved_at" json:"resolvedAt"`
+}
+
+// CommentView pairs a Comment with its page slug — the READY-TO-DISPLAY shape
+// for the CLI (and the derived open-feedback surface). Listing joins on
+// pages.slug so the shell and the agent never have to resolve a raw page_id.
+type CommentView struct {
+	Comment
+	PageSlug string `json:"page"`
+}
+
+// Change records an agent edit that addresses feedback. ChangeID matches a
+// data-cf-change marker embedded in the page HTML, so the what-changed
+// walkthrough can map an edit back to the comment it resolves. CommentID is
+// nullable: a change may carry no comment (general tidying).
+type Change struct {
+	ID        int64  `db:"id" json:"id"`
+	PageID    int64  `db:"page_id" json:"pageId"`
+	CommentID *int64 `db:"comment_id" json:"commentId"`
+	ChangeID  string `db:"change_id" json:"changeId"`
+	CreatedAt string `db:"created_at" json:"createdAt"`
+}
+
 // Settings holds user preferences.
 type Settings struct {
 	ID                  int64  `db:"id" json:"id"`
