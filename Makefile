@@ -1,46 +1,57 @@
-.PHONY: build install clean run test css tidy dev fmt check
+.PHONY: build css tailwind-download start stop dev test vet fmt check install clean tidy
 
-# Build the pharos CLI binary (includes embedded CSS)
+# Build the binary (rebuilds CSS first so the embedded stylesheet is fresh).
 build: css
 	mkdir -p bin
-	go build -o bin/pharos ./cmd/pharos
+	go build -o bin/harbor ./cmd/harbor
 
-# Build Tailwind CSS from source (scans Go files for classes directly)
+# Compile Tailwind utilities from web/input.css → internal/web/app.css (embedded).
+# Scans Go files so only used classes ship in the embed.
 css:
+	@if [ ! -f .bin/tailwindcss ]; then echo "Missing .bin/tailwindcss — run: make tailwind-download"; exit 1; fi
 	./.bin/tailwindcss --input web/input.css --output web/app.css --content "**/*.go" --minify
+	mkdir -p internal/web
 	cp web/app.css internal/web/app.css
 
-# Install to GOPATH/bin
-install: css
-	go install ./cmd/pharos
+# Fetch the Tailwind CLI binary (run once per checkout).
+tailwind-download:
+	go run ./cmd/harbor tailwind download
 
-# Clean build artifacts
-clean:
-	rm -f bin/pharos
-	go clean
+# Start the web UI in the background (daemon).
+start: css
+	go run ./cmd/harbor start
 
-# Run directly
-run: css
-	go run ./cmd/pharos
+# Stop the daemon.
+stop:
+	go run ./cmd/harbor stop
 
-# Test
+# Run the server in the foreground (development).
+dev: css
+	go run ./cmd/harbor start --foreground
+
+# Run all tests.
 test:
 	go test ./...
 
-# Format Go code
+# go vet across the module.
+vet:
+	go vet ./...
+
+# Format Go source.
 fmt:
 	gofmt -s -w .
 
-# Check formatting, vet, and test
-check:
-	test -z "$(gofmt -l .)"
-	go vet ./...
-	go test ./...
+# Lint + test in one call.
+check: vet test
 
-# Tidy dependencies
+# Build + install binary to PATH (~/go/bin).
+install: build
+	cp bin/harbor ~/go/bin/harbor
+
+# Remove build artifacts.
+clean:
+	rm -rf bin/
+
+# Tidy module deps.
 tidy:
 	go mod tidy
-
-# Hot-reload dev server (rebuilds Go + CSS on change)
-dev:
-	go run ./cmd/pharos dev
