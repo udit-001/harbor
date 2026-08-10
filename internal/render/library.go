@@ -363,7 +363,7 @@ func libraryScript(data LibraryData) string {
 }
 
 func logo() string {
-	return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 9l4 4 4-4M8 14l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>`
+	return `<svg width="22" height="22" viewBox="0 0 24 24" fill="none"><path d="M7 9l5 5 5-5M7 14l5 5 5-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>`
 }
 
 func libraryCSS() string {
@@ -392,7 +392,7 @@ a{text-decoration:none;color:inherit}
 .link{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--rs);color:var(--text);font-size:14px}
 .link:hover{background:var(--surface2)}
 .link.active{background:var(--acc-soft);color:var(--acc);font-weight:600}
-.link .ic{width:15px;color:var(--muted);flex:none}
+.link .ic{width:16px;height:16px;color:var(--muted);flex:none;display:inline-flex;align-items:center;justify-content:center}
 .link .cnt{margin-left:auto;font-size:11px;color:var(--muted);background:var(--chip);border-radius:999px;padding:0 7px}
 .main{min-width:0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
 .topbar{flex:none;display:flex;align-items:center;gap:16px;height:52px;padding:0 24px;background:var(--surface);border-bottom:1px solid var(--border)}

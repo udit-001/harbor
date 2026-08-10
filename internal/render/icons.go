@@ -104,21 +104,12 @@ func iconTag() string {
 	return `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="shrink-0"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>`
 }
 
-// logoSVG returns the Harbor logo — a constellation node network.
+// logoSVG returns the Harbor logo — two downward chevrons.
 func logoSVG() string {
 	return `<svg class="shrink-0" viewBox="0 0 100 100" width="28" height="28" aria-hidden="true">
-		<g stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none">
-			<line x1="50" y1="50" x2="28" y2="28"/>
-			<line x1="50" y1="50" x2="74" y2="30"/>
-			<line x1="50" y1="50" x2="26" y2="70"/>
-			<line x1="50" y1="50" x2="74" y2="72"/>
+		<g fill="none" stroke="currentColor" stroke-linejoin="round" stroke-width="7">
+			<path d="M34 32 L50 48 L66 32"/>
+			<path d="M34 52 L50 68 L66 52"/>
 		</g>
-		<g fill="currentColor">
-			<circle cx="28" cy="28" r="4"/>
-			<circle cx="74" cy="30" r="4"/>
-			<circle cx="26" cy="70" r="4"/>
-			<circle cx="74" cy="72" r="4"/>
-		</g>
-		<circle cx="50" cy="50" r="8" fill="currentColor"/>
 	</svg>`
 }
