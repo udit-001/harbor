@@ -132,8 +132,8 @@ func breadcrumbs(f Frame) string {
 	sep := `<span class="text-slate-300 mx-1 shrink-0">/</span>`
 	wsLink := fmt.Sprintf(`<a href="%s" class="text-slate-400 hover:text-slate-600 no-underline text-sm truncate max-w-[40vw] block">%s</a>`, wsURL, esc(wsLabel))
 
-	// On the workspace landing page there's no item crumb — just show
-	// the workspace name (no separator, no page crumb).
+	// The workspace crumb links to the library filtered to that workspace;
+	// when there's no item below it (ActiveType empty), only the name shows.
 	var pageCrumb string
 	if f.ActiveType != "" {
 		switch f.ActiveType {

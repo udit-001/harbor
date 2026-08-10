@@ -105,7 +105,6 @@ func TestSmokePageRoutes(t *testing.T) {
 	}{
 		{"css", "/css/app.css"},
 		{"dashboard", "/"},
-		{"workspace", "/workspace/alpha"},
 		{"about", "/about"},
 	}
 
@@ -252,15 +251,6 @@ func TestPageViewAndRaw(t *testing.T) {
 	}
 	if env.get(t, "/page/nope").Code != 404 {
 		t.Error("missing page view should 404")
-	}
-}
-
-func TestWorkspaceNotFound(t *testing.T) {
-	env := newTestEnv(t)
-
-	rec := env.get(t, "/workspace/nonexistent")
-	if rec.Code != 404 {
-		t.Errorf("nonexistent workspace should 404; got %d", rec.Code)
 	}
 }
 

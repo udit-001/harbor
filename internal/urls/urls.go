@@ -14,9 +14,9 @@ func PathEscape(s string) string {
 	return url.PathEscape(s)
 }
 
-// Workspace returns the workspace page URL: /workspace/{name}.
+// Workspace returns the library URL filtered to a workspace: /?workspace={name}.
 func Workspace(name string) string {
-	return fmt.Sprintf("/workspace/%s", PathEscape(name))
+	return "/?workspace=" + url.QueryEscape(name)
 }
 
 // Lesson returns a lesson page URL: /workspace/{name}/lesson/{seq}.

@@ -113,16 +113,6 @@ type QuizWidgetItem struct {
 	Total         int
 }
 
-// WorkspaceData drives a workspace landing page.
-type WorkspaceData struct {
-	Workspace Workspace
-	Mission   string
-	Continue  *ContinueItem
-	Lessons   []LessonEntry
-	Records   []RecordEntry
-	Refs      []RefEntry
-}
-
 // LessonData drives a lesson detail page (iframe).
 type LessonData struct {
 	Title  string

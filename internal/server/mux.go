@@ -104,7 +104,6 @@ func NewMux(store *db.Store, dataDir string, devCSS bool) *http.ServeMux {
 	mux.HandleFunc("GET /", handleAppShell(store))
 	mux.HandleFunc("GET /page/{slug}", handlePageView(store, dataDir))
 	mux.HandleFunc("GET /page/{slug}/raw", handlePageRaw(store, dataDir))
-	mux.HandleFunc("GET /workspace/{name}", handleWorkspacePage(store))
 	mux.HandleFunc("GET /about", handleAboutPage(store))
 
 	// Live-sync: CLI mutations broadcast through the broker; the dashboard
@@ -565,24 +564,6 @@ func shortDate(ts string) string {
 		return ts[:10]
 	}
 	return ts
-}
-
-// handleWorkspacePage serves a workspace landing page.
-func handleWorkspacePage(store *db.Store) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		name := r.PathValue("name")
-		wsStore, err := store.Workspace(name)
-		if err != nil {
-			writeNotFound(w, "Workspace not found", fmt.Sprintf("Workspace %q doesn't exist.", name))
-			return
-		}
-		ws := wsStore.Workspace()
-
-		data := render.WorkspaceData{
-			Workspace: render.Workspace{Name: ws.Name, Topic: ws.Topic},
-		}
-		writePage(w, ws.DisplayName(), name, render.WorkspacePage(data))
-	}
 }
 
 // ── Live-sync: SSE subscribe + CLI notify broadcast ──

@@ -34,8 +34,8 @@ func TestBuilders(t *testing.T) {
 		got  string
 		want string
 	}{
-		{name: "workspace", got: Workspace("go snippets"), want: "/workspace/go%20snippets"},
-		{name: "workspace no spaces", got: Workspace("alpha"), want: "/workspace/alpha"},
+		{name: "workspace", got: Workspace("go snippets"), want: "/?workspace=go+snippets"},
+		{name: "workspace no spaces", got: Workspace("alpha"), want: "/?workspace=alpha"},
 		{name: "lesson", got: Lesson("go snippets", 3), want: "/workspace/go%20snippets/lesson/3"},
 		{name: "lesson seq 1", got: Lesson("alpha", 1), want: "/workspace/alpha/lesson/1"},
 		{name: "record", got: Record("go snippets", 7), want: "/workspace/go%20snippets/record/7"},

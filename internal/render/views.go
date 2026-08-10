@@ -25,7 +25,6 @@ func renderComponent(c templ.Component) string {
 
 func Dashboard(d DashboardData) string     { return renderComponent(dashboard(d)) }
 func About() string                        { return renderComponent(about()) }
-func WorkspacePage(d WorkspaceData) string { return renderComponent(workspacePage(d)) }
 func Lesson(d LessonData) string           { return renderComponent(lesson(d)) }
 func Record(d RecordData) string           { return renderComponent(record(d)) }
 func Ref(d RefData) string                 { return renderComponent(ref(d)) }
