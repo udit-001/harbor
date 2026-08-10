@@ -13,7 +13,7 @@ func TestPageViewHasCommentPanel(t *testing.T) {
 	for _, want := range []string{
 		`id="commentBtn"`, `aria-expanded="false"`,
 		`id="commentPanel"`, `role="dialog"`, `aria-modal="true"`,
-		`id="commentClose"`, `id="cpBody"`, `id="cpType"`, `id="cpPick"`, `id="cpList"`,
+		`id="commentClose"`, `id="cpBody"`, `id="cpType"`, `id="cpClear"`, `id="cpList"`,
 		"Post comment",
 		`encodeURIComponent(slug)`, // the JSON API path the shell targets at runtime
 		"No comments yet",          // empty list state rendered by the shell
