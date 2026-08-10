@@ -57,6 +57,18 @@ func TestCommentsListAndUpdate(t *testing.T) {
 	}
 }
 
+func TestParseCommentIDAcceptsHash(t *testing.T) {
+	for raw, want := range map[string]int64{"3": 3, "#3": 3, " #3 ": 3} {
+		got, err := parseCommentID(raw)
+		if err != nil || got != want {
+			t.Errorf("parseCommentID(%q) = %d, %v; want %d", raw, got, err, want)
+		}
+	}
+	if _, err := parseCommentID("#"); err == nil {
+		t.Error("parseCommentID('#') should error")
+	}
+}
+
 func TestCommentsListEmptyState(t *testing.T) {
 	store, cleanup := newTestStore(t)
 	defer cleanup()

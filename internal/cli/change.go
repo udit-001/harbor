@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"os"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -42,7 +43,15 @@ Examples:
 		changeID, _ := cmd.Flags().GetString("change-id")
 		title, _ := cmd.Flags().GetString("title")
 		desc, _ := cmd.Flags().GetString("description")
-		commentID, _ := cmd.Flags().GetInt64("comment")
+		commentRaw, _ := cmd.Flags().GetString("comment")
+		var commentID int64
+		if commentRaw != "" {
+			parsed, perr := parseCommentID(commentRaw) // accepts "#3" or "3"
+			if perr != nil {
+				return perr
+			}
+			commentID = parsed
+		}
 		if changeID == "" {
 			return fmt.Errorf("--change-id is required\n  harbor change add %q --change-id <marker> --title ...", slug)
 		}
@@ -63,6 +72,19 @@ Examples:
 		fmt.Printf("  ✓ Change recorded: %s\n", ch.ChangeID)
 		fmt.Printf("    %s — %s\n", ch.Title, ch.Description)
 		fmt.Printf("    Add the marker:  data-cf-change=\"%s\" on the edited element\n", ch.ChangeID)
+		// Completion guard: a change whose marker isn't in the page is skipped by
+		// the walkthrough — warn so the agent knows to place data-cf-change.
+		if page, perr := s.PageBySlug(slug); perr == nil {
+			if ws, werr := s.GetWorkspace(page.WorkspaceID); werr == nil {
+				path := managedPagePath(ws.Name, slug)
+				if data, rerr := os.ReadFile(path); rerr == nil {
+					if !strings.Contains(string(data), `data-cf-change="`+ch.ChangeID+`"`) {
+						fmt.Printf("  ⚠ Marker not found in %s — the walkthrough skips a change with no matching element.\n", path)
+						fmt.Printf("    Place  data-cf-change=\"%s\" on the element you edited, then run this again.\n", ch.ChangeID)
+					}
+				}
+			}
+		}
 		fmt.Println()
 		return nil
 	},
@@ -118,7 +140,7 @@ func init() {
 	changeCmd.AddCommand(changeAddCmd)
 	changeCmd.AddCommand(changeListCmd)
 	changeAddCmd.Flags().String("change-id", "", "data-cf-change marker id (required)")
-	changeAddCmd.Flags().Int64("comment", 0, "Comment id this change resolves")
+	changeAddCmd.Flags().String("comment", "", "Comment id this change resolves (\"#3\" or \"3\")")
 	changeAddCmd.Flags().String("title", "", "Short human title (required)")
 	changeAddCmd.Flags().String("description", "", "Longer what-changed description")
 }

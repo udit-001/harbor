@@ -141,6 +141,9 @@ func init() {
 
 // parseCommentID parses a comment id argument (a positive integer).
 func parseCommentID(raw string) (int64, error) {
+	// list/watch render ids as "#3"; accept that form so the agent can paste
+	// the id straight back into update / change add --comment.
+	raw = strings.TrimPrefix(strings.TrimSpace(raw), "#")
 	var id int64
 	if _, err := fmt.Sscanf(raw, "%d", &id); err != nil || id < 1 {
 		return 0, fmt.Errorf("invalid comment id %q", raw)
