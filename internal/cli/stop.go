@@ -11,7 +11,7 @@ import (
 var stopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Stop the running web UI dashboard server",
-	Long: `Stop the local Pharos web server if one is running.
+	Long: `Stop the local Harbor web server if one is running.
 
 Reads the server PID file, sends a graceful
 shutdown signal (SIGINT) to the server process, and cleans up
@@ -28,7 +28,7 @@ Examples:
 				return nil
 			}
 			fmt.Println()
-			fmt.Println("  No running Pharos server found")
+			fmt.Println("  No running Harbor server found")
 			fmt.Println()
 			return nil
 		}
@@ -42,7 +42,7 @@ Examples:
 				return nil
 			}
 			fmt.Println()
-			fmt.Println("  No running Pharos server found (stale PID file cleaned up)")
+			fmt.Println("  No running Harbor server found (stale PID file cleaned up)")
 			fmt.Println()
 			return nil
 		}
@@ -55,7 +55,7 @@ Examples:
 				return nil
 			}
 			fmt.Println()
-			fmt.Println("  Pharos server already stopped (stale PID file cleaned up)")
+			fmt.Println("  Harbor server already stopped (stale PID file cleaned up)")
 			fmt.Println()
 			return nil
 		}
@@ -67,7 +67,7 @@ Examples:
 			return nil
 		}
 		fmt.Println()
-		fmt.Println("  Pharos server stopped")
+		fmt.Println("  Harbor server stopped")
 		fmt.Println()
 		return nil
 	},

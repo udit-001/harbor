@@ -112,7 +112,7 @@ Examples:
 		fmt.Printf("  ✓ %s set to %s\n", key, value)
 		fmt.Printf("    Config: %s\n", config.Path())
 		if key == "port" {
-			fmt.Println("    Note: if you've pinned Pharos, re-create the shortcut so it points at the new port.")
+			fmt.Println("    Note: if you've pinned Harbor, re-create the shortcut so it points at the new port.")
 		}
 		fmt.Println()
 		return nil

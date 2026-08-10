@@ -5,9 +5,9 @@ import (
 	"strings"
 )
 
-// Version is the current version of the Pharos CLI.
+// Version is the current version of the Harbor CLI.
 // Overridden at build time via ldflags, or detected from Go module info.
-var Version = "0.3.0"
+var Version = "0.1.0"
 
 // Commit is the git commit hash the binary was built from.
 // Overridden at build time via ldflags, or detected from VCS build info.
