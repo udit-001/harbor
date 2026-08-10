@@ -197,6 +197,17 @@ func (s *Store) DeletePage(slug string) error {
 	return nil
 }
 
+// PageCountForWorkspace returns how many pages belong to a workspace by name.
+// Used for workspace stats; an unknown workspace yields zero with no error.
+func (s *Store) PageCountForWorkspace(workspaceSlug string) (int, error) {
+	var count int
+	err := s.db.Get(&count,
+		"SELECT COUNT(*) FROM pages WHERE workspace_id IN (SELECT id FROM workspaces WHERE name = ?)",
+		workspaceSlug,
+	)
+	return count, err
+}
+
 // setPageTags replaces the tag association set for a page. Each name must
 // already exist as a Tag — the agent creates tags deliberately with a
 // description (create-first rule). Detaching a tag does NOT delete the Tag; it

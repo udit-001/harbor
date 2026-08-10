@@ -8,8 +8,9 @@ import (
 
 var workspaceStatsCmd = &cobra.Command{
 	Use:   "stats",
-	Short: "Show workspaces",
-	Long: `Show a summary of workspaces in the data directory.
+	Short: "Show workspaces and their page counts",
+	Long: `Show a summary of workspaces in the data directory, including how many
+pages each body of work holds.
 
 Examples:
   harbor workspace stats
@@ -22,8 +23,21 @@ Examples:
 			return formatError("failed to get stats", err)
 		}
 
+		type wsStat struct {
+			Name  string `json:"name"`
+			Pages int    `json:"pages"`
+		}
+		st := make([]wsStat, 0, len(workspaces))
+		for _, w := range workspaces {
+			count, err := s.PageCountForWorkspace(w.Name)
+			if err != nil {
+				return formatError("failed to count pages", err)
+			}
+			st = append(st, wsStat{Name: w.DisplayName(), Pages: count})
+		}
+
 		if jsonEnabled(cmd) {
-			printJSON(map[string]any{"totalWorkspaces": len(workspaces)})
+			printJSON(map[string]any{"totalWorkspaces": len(workspaces), "workspaces": st})
 			return nil
 		}
 
@@ -33,8 +47,8 @@ Examples:
 
 		if len(workspaces) > 0 {
 			fmt.Println("  Workspaces:")
-			for _, w := range workspaces {
-				fmt.Printf("    %s\n", w.DisplayName())
+			for _, s := range st {
+				fmt.Printf("    %-30s %d page(s)\n", s.Name, s.Pages)
 			}
 			fmt.Println()
 		}
