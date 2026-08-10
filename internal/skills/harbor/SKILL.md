@@ -1,6 +1,6 @@
 ---
 name: harbor
-description: Use harbor when you build a standalone HTML page a human will want to see or keep — register it (harbor page add), group it into a workspace (harbor workspace), or tag it (harbor tag); also when a human asks you to save, organize, find, or review pages (harbor search, page list/read), or to run the dashboard (harbor start / stop).
+description: Use harbor when you build a standalone HTML page a human will want to see or keep — register it (harbor page add), group it into a workspace (harbor workspace), or tag it (harbor tag); also when a human asks you to save, organize, find, or review pages (harbor search, page list/read), to run the dashboard (harbor start / stop), or to answer page feedback (harbor comments list/watch, harbor change add).
 ---
 
 # Harbor
@@ -54,6 +54,28 @@ library.
   covers it, update it by slug instead of duplicating.
 - **Status is manual** (`draft` / `published` / `archived`). Open feedback is
   derived from the comments queue — there is no stored "has feedback" flag.
+
+## Responding to feedback
+
+Humans leave anchored comments on your pages; you answer them by editing the
+page. The dashboard surfaces open comments (default queue): `harbor comments list`
+read the newest with `harbor comments watch`.
+
+For each open comment, in order:
+
+1. **Read it** — `harbor comments list` (defaults to open) shows
+   `page / quote / body` so you know exactly what to change.
+2. **Edit the page** to address it.
+3. **Mark the changed element** with a stable id on the element you edited:
+   `data-cf-change="<id>"` (a short slug, e.g. `cf-1`).
+4. **Record the change** so the human is walked through what you did:
+   `harbor change add <slug> --change-id <id> --title "what I changed" \
+   --description "why" [--comment <commentId>]`
+5. **Close the comment** once addressed: `harbor comments update <commentId> --status done`.
+
+The change's `--title`/`--description` is what the walkthrough shows — write it
+for someone who hasn't seen the diff. `--description` optional; `--title` is
+required.
 
 ## Finding things
 

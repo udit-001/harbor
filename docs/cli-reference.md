@@ -27,6 +27,30 @@ harbor start --dev-css                   # Serve CSS from disk (dev mode)
 harbor stop                              # Stop the running web server
 ```
 
+## Comments (feedback loop)
+
+```bash
+harbor comments list                             # List open comments (default)
+harbor comments list --page <slug>               # One page
+harbor comments list --status in-progress|done   # Other states
+harbor comments list --json                      # Machine-readable
+harbor comments watch                            # Tail new open comments as they arrive
+harbor comments update <id> --status done        # Close a comment once addressed
+```
+
+## Changes (what-changed walkthrough)
+
+The agent answers a comment by editing the page, placing a
+`data-cf-change="<id>"` marker on the edited element, and recording the change —
+which the dashboard walks the human through ("What changed").
+
+```bash
+harbor change add <slug> --change-id <id> \     # Record a change against a marker
+    --title "what I changed" [--description "why"] [--comment <commentId>]
+harbor change list <slug>                        # What the walkthrough will tour
+harbor change list <slug> --json                 # Machine-readable
+```
+
 ## Workspaces
 
 ```bash
