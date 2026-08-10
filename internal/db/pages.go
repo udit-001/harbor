@@ -227,6 +227,48 @@ func (s *Store) ClearPageBodies() error {
 	return err
 }
 
+// PagesCountByWorkspace returns workspace name → page count, for sidebar counts.
+func (s *Store) PagesCountByWorkspace() (map[string]int, error) {
+	rows, err := s.db.Query(
+		"SELECT w.name, COUNT(p.id) FROM workspaces w LEFT JOIN pages p ON p.workspace_id = w.id GROUP BY w.id",
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var name string
+		var n int
+		if err := rows.Scan(&name, &n); err != nil {
+			return nil, err
+		}
+		out[name] = n
+	}
+	return out, rows.Err()
+}
+
+// PagesCountByTag returns tag name → page count, for sidebar counts.
+func (s *Store) PagesCountByTag() (map[string]int, error) {
+	rows, err := s.db.Query(
+		"SELECT t.name, COUNT(pt.page_id) FROM tags t LEFT JOIN page_tags pt ON pt.tag_id = t.id GROUP BY t.id",
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var name string
+		var n int
+		if err := rows.Scan(&name, &n); err != nil {
+			return nil, err
+		}
+		out[name] = n
+	}
+	return out, rows.Err()
+}
+
 // setPageTags replaces the tag association set for a page. Each name must
 // already exist as a Tag — the agent creates tags deliberately with a
 // description (create-first rule). Detaching a tag does NOT delete the Tag; it

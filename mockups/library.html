@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>harbor — mockup</title>
+<style>
+  :root{
+    --bg:#eceff4; --surface:#ffffff; --surface-2:#f6f8fb; --border:#d8dee9; --hairline:#e5e9f0;
+    --text:#4c566a; --muted:#8891a0; --strong:#2e3440;
+    --accent:#5e81ac; --accent-soft:#e0e7ff;
+    --ok:#4a7a2e; --ok-soft:#e6f0e6; --warn:#d08770; --warn-soft:#fadfd2;
+    --arch:#8891a0; --arch-soft:#eceff4;
+    --radius:8px; --radius-sm:6px; --shadow:0 1px 2px rgba(0,0,0,.05),0 10px 30px rgba(0,0,0,.08);
+    --ease:cubic-bezier(.23,1,.32,1);
+    --font:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  }
+  [data-theme="dark"]{
+    --bg:#2e3440; --surface:#3b4252; --surface-2:#343b48; --border:#434c5e; --hairline:#4c566a;
+    --text:#aebbcf; --muted:#8290a6; --strong:#eceff4;
+    --accent:#81a1c1; --accent-soft:rgba(129,161,193,.15);
+    --ok:#95c088; --ok-soft:#2e3440; --warn:#d08770; --warn-soft:#4c566a; --arch:#8290a6; --arch-soft:#3b4252;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:var(--font);background:var(--bg);color:var(--text);font-size:15px;
+    line-height:1.6;-webkit-font-smoothing:antialiased}
+  .mock-tab{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);z-index:99;display:flex;gap:2px;
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:3px;box-shadow:var(--shadow)}
+  .mock-tab button{border:0;background:transparent;color:var(--muted);font:600 12px var(--font);
+    padding:6px 11px;border-radius:5px;cursor:pointer}
+  .mock-tab button.active{background:var(--accent);color:#fff}
+  .screen{display:none;max-width:1120px;margin:0 auto}
+  .screen.active{display:block}
+  button{font-family:var(--font)}
+
+  /* ---------- app frame ---------- */
+  .app{display:grid;grid-template-columns:232px 1fr;min-height:100vh}
+  .side{background:var(--surface);border-right:1px solid var(--border);padding:16px 12px;position:sticky;top:0;height:100vh;overflow:auto}
+  .brand{display:flex;align-items:center;gap:9px;color:var(--strong);font-weight:700;font-size:15px;
+    padding:4px 8px 16px;letter-spacing:-.01em}
+  .brand svg{color:var(--accent)}
+  .nav{display:flex;flex-direction:column;gap:2px}
+  .sec{padding:14px 8px 6px;font-size:.6875rem;letter-spacing:.04em;color:var(--muted);font-weight:600}
+  .sec:first-child{padding-top:4px}
+  .link{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--radius-sm);color:var(--text);
+    font-size:14px;cursor:pointer;transition:background .1s var(--ease)}
+  .link:hover{background:var(--surface-2)}
+  .link.active{background:var(--accent-soft);color:var(--accent);font-weight:600}
+  .link .ic{width:16px;height:16px;color:var(--muted);flex:none}
+  .link.active .ic{color:var(--accent)}
+  .link .cnt{margin-left:auto;font-size:11px;color:var(--muted);background:rgba(0,0,0,.05);border-radius:999px;padding:0 7px}
+  .main{min-width:0}
+  .topbar{display:flex;align-items:center;gap:16px;height:52px;padding:0 24px;background:var(--surface);border-bottom:1px solid var(--border)}
+  .crumb{font-size:13px;color:var(--muted)}
+  .crumb b{color:var(--strong);font-weight:600}
+  .search{flex:1;max-width:460px;margin-left:auto}
+  .search input{width:100%;padding:8px 12px 8px 34px;border:1px solid var(--border);border-radius:var(--radius-sm);
+    background:var(--bg) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='15' height='15' viewBox='0 0 24 24' fill='none' stroke='%238891a0' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m21 21-4-4'/%3E%3C/svg%3E") 12px center no-repeat;
+    font:400 14px var(--font);color:var(--text);outline:none;transition:border-color .1s}
+  .search input:focus{border-color:var(--accent)}
+  .icon-btn{border:1px solid var(--border);background:var(--surface);color:var(--muted);width:32px;height:32px;
+    border-radius:var(--radius-sm);cursor:pointer;display:grid;place-items:center;transition:color .1s}
+  .icon-btn:hover{color:var(--text)}
+
+  .body{padding:22px 24px 60px}
+  .pagehead{display:flex;align-items:baseline;gap:12px;padding-bottom:6px}
+  .pagehead h1{font-size:20px;font-weight:700;color:var(--strong);margin:0;letter-spacing:-.01em}
+  .pagehead .count{color:var(--muted);font-size:13px}
+  .seg{display:flex;gap:2px;padding:12px 0 10px;border-bottom:1px solid var(--hairline)}
+  .seg button{border:1px solid transparent;background:transparent;color:var(--muted);font:600 13px var(--font);
+    padding:6px 13px;border-radius:var(--radius-sm);cursor:pointer}
+  .seg button.active{background:var(--surface);border-color:var(--border);color:var(--strong);box-shadow:0 1px 2px rgba(0,0,0,.04)}
+  .kbd{font-size:11px;color:var(--muted);align-self:center}
+
+  .list{margin-top:4px}
+  .row{display:flex;align-items:center;gap:14px;padding:14px 12px;border-bottom:1px solid var(--hairline);
+    border-radius:var(--radius-sm);cursor:pointer;transition:background .1s var(--ease)}
+  .row:last-child{border-bottom:0}
+  .row:hover{background:var(--surface-2)}
+  .row .grow{min-width:0;flex:1}
+  .row .t{display:flex;align-items:center;gap:9px}
+  .row .name{font-weight:600;color:var(--strong);font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .desc{color:var(--muted);font-size:13px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .row .meta{display:flex;align-items:center;gap:7px;margin-top:5px;flex-wrap:wrap}
+  .tag{font-size:11.5px;color:var(--muted);background:var(--surface);border:1px solid var(--hairline);border-radius:4px;padding:0 6px}
+  .row .right{display:flex;align-items:center;gap:12px;flex:none}
+  .badge{font:600 11px var(--font);padding:2px 8px;border-radius:999px;letter-spacing:.02em}
+  .badge.pub{color:var(--ok);background:var(--ok-soft)}
+  .badge.draft{color:var(--warn);background:var(--warn-soft)}
+  .badge.arch{color:var(--arch);background:var(--arch-soft)}
+  .fb{display:inline-flex;align-items:center;gap:5px;color:var(--warn);font:600 11px var(--font)}
+  .fb i{width:7px;height:7px;border-radius:999px;background:var(--warn);display:inline-block}
+  .updated{color:var(--muted);font-size:12px;white-space:nowrap}
+
+  /* empty */
+  .empty{text-align:center;padding:68px 20px 54px;border:1px dashed var(--border);border-radius:var(--radius);
+    background:var(--surface);margin-top:6px}
+  .empty svg{margin:0 auto 16px;width:42px;height:42px;color:var(--border);display:block}
+  .empty h2{margin:0 0 6px;font-size:16px;color:var(--strong)}
+  .empty p{margin:0 auto 18px;color:var(--muted);font-size:13.5px;max-width:400px}
+  .empty code{background:var(--bg);border:1px solid var(--hairline);border-radius:var(--radius-sm);padding:9px 14px;
+    display:inline-block;font:500 12.5px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text)}
+
+  /* ---------- single page view (container ⇄ full via the .full class) ---------- */
+  #page .pv{display:flex;align-items:center;gap:12px;height:52px;padding:0 16px;background:var(--surface);border-bottom:1px solid var(--border)}
+  #page .pv .title{font-weight:600;color:var(--strong);font-size:14px;white-space:nowrap}
+  #page .pv .chips{display:flex;align-items:center;gap:6px;overflow:hidden}
+  #page .pv .navr{margin-left:auto;display:flex;align-items:center;gap:8px;flex:none}
+  #page .wrap{padding:22px 24px 48px;display:flex;justify-content:center}
+  #page .frame{height:520px;max-width:860px;width:100%;border:1px solid var(--border);border-radius:var(--radius);
+    background:#fff;color:#3b4252;padding:36px 46px;overflow:auto}
+  #page .frame h1{color:#2e3440;margin-top:0}
+  #page .frame .note{color:#8891a0;font-size:13px;border-left:3px solid var(--accent);padding-left:12px;margin-top:16px}
+  .demo-hint{color:var(--muted);font-size:11.5px;text-align:center;margin-top:8px}
+
+  /* full: header pinned to top, edge-to-edge frame, header auto-hides on hover */
+  #page.full .pv{position:absolute;top:0;left:0;right:0;opacity:0;border-bottom:1px solid var(--border);
+    transform:translateY(-6px);transition:opacity .15s var(--ease),transform .15s var(--ease)}
+  #page.full .wrap{padding:0}
+  #page.full .frame{height:100vh;max-width:none;border:0;border-radius:0;padding:64px 84px}
+  #page.full .demo-hint{display:none}
+  @media(prefers-reduced-motion:reduce){#page.full .pv{transition:none}}
+</style>
+</head>
+<body>
+
+<div class="mock-tab">
+  <button data-s="library" class="active">Library</button>
+  <button data-s="empty">Empty</button>
+  <button data-s="page">The page <span style="opacity:.6">·</span> container</button>
+  <button data-s="page-f">The page <span style="opacity:.6">·</span> full</button>
+</div>
+
+<!-- ============ LIBRARY ============ -->
+<section class="screen active" id="library">
+<div class="app">
+  <aside class="side">
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 9l4 4 4-4M8 14l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg> harbor</div>
+    <nav class="nav">
+      <div class="sec">Library</div>
+      <div class="link active"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6h18M3 12h18M3 18h18"/></svg></span> All pages<span class="cnt">5</span></div>
+      <div class="sec">Workspaces</div>
+      <div class="link"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span> income-tracker<span class="cnt">2</span></div>
+      <div class="link"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span> life-plan<span class="cnt">1</span></div>
+      <div class="link"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg></span> teach-demo<span class="cnt">1</span></div>
+      <div class="sec">Tags</div>
+      <div class="link"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 12 12 20 4 12V4h8Z"/></svg></span> finance<span class="cnt">1</span></div>
+      <div class="link"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M20 12 12 20 4 12V4h8Z"/></svg></span> chart<span class="cnt">1</span></div>
+    </nav>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <span class="crumb">Library <b>/</b></span>
+      <div class="search"><input placeholder="Search pages…  ( ⌘K )"></div>
+      <button class="icon-btn" title="Theme"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5M17.5 17.5 19 19m0-14-1.5 1.5M6.5 17.5 5 19"/></svg></button>
+    </div>
+    <div class="body">
+      <div class="pagehead"><h1>All pages</h1><span class="count">5 pages</span></div>
+      <div class="seg">
+        <button class="active">All</button><button>Draft</button><button>Published</button><button>Archived</button>
+        <span class="kbd" style="margin-left:auto">⌘K to search</span>
+      </div>
+      <div class="list">
+        <div class="row"> <div class="grow">
+            <div class="t"><span class="name">Revenue Deep Dive</span><span class="fb"><i></i>2 open</span></div>
+            <div class="desc">Quarterly revenue analysis for the board</div>
+            <div class="meta"><span class="tag">income-tracker</span><span class="tag">finance</span><span class="tag">report</span></div></div>
+          <div class="right"><span class="updated">2h ago</span><span class="badge pub">published</span></div>
+        </div>
+        <div class="row"> <div class="grow">
+            <div class="t"><span class="name">Sankey of deal flow</span></div>
+            <div class="desc">Chart exploring funnel conversion</div>
+            <div class="meta"><span class="tag">income-tracker</span><span class="tag">chart</span></div></div>
+          <div class="right"><span class="updated">1d ago</span><span class="badge pub">published</span></div>
+        </div>
+        <div class="row"> <div class="grow">
+            <div class="t"><span class="name">Interview notes — scoring sheet</span></div>
+            <div class="desc">Rubric and rating sheet</div>
+            <div class="meta"><span class="tag">life-plan</span><span class="tag">notes</span></div></div>
+          <div class="right"><span class="updated">just now</span><span class="badge draft">draft</span></div>
+        </div>
+        <div class="row"> <div class="grow">
+            <div class="t"><span class="name">Autism unit — week planner</span></div>
+            <div class="desc">Weekly lesson plan</div>
+            <div class="meta"><span class="tag">teach-demo</span><span class="tag">lesson</span></div></div>
+          <div class="right"><span class="updated">3d ago</span><span class="badge arch">archived</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============ EMPTY ============ -->
+<section class="screen" id="empty">
+<div class="app">
+  <aside class="side">
+    <div class="brand"><svg width="22" height="22" viewBox="0 0 24 24" fill="none"><rect x="4" y="3" width="16" height="18" rx="1.5"/><path d="M8 9l4 4 4-4M8 14l4 4 4-4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg> harbor</div>
+    <nav class="nav"><div class="sec">Library</div><div class="link active"><span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 6h18M3 12h18M3 18h18"/></svg></span> All pages<span class="cnt">0</span></div></nav>
+  </aside>
+  <div class="main">
+    <div class="topbar"><span class="crumb">Library</span><div class="search"><input placeholder="Search pages…  ( ⌘K )"></div></div>
+    <div class="body">
+      <div class="pagehead"><h1>All pages</h1><span class="count">0 pages</span></div>
+      <div class="empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="3" y="4" width="18" height="16" rx="1.5"/><path d="M3 8h18M8 4v4M16 4v4M3 13h6M3 17h4"/></svg>
+        <h2>No pages yet</h2>
+        <p>Harbor holds the HTML pages your agent builds. When the agent makes a page worth keeping, it imports it here with one command.</p>
+        <code>harbor page add your-page.html --workspace my-work --description "what it shows"</code>
+      </div>
+    </div>
+  </div>
+</div>
+</section>
+
+<!-- ============ PAGE (container + full share one header) ============ -->
+<section class="screen" id="page">
+  <div class="pv" id="pagebar">
+    <button class="icon-btn" id="btnBack" title="Back to library"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M19 12H5m6-7-7 7 7 7"/></svg></button>
+    <span class="title">Revenue Deep Dive</span>
+    <span class="badge pub">published</span>
+    <div class="chips"><span class="tag">income-tracker</span><span class="tag">finance</span><span class="tag">report</span></div>
+    <div class="navr">
+      <span class="updated" title="Prev / Next in the current set">← →</span>
+      <button class="icon-btn" id="btnMode" title="Toggle full / container"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
+      <button class="icon-btn" id="btnPop" title="Pop out"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg></button>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="frame" id="theframe">
+      <h1>Revenue Deep Dive</h1>
+      <div class="note">This area is the real page — a neutral, full-bleed iframe, byte-for-byte as the agent wrote it. Harbor never restyles or injects into it.</div>
+      <p style="margin-top:20px">Container ⇄ full are two states of one view sharing this single header. Full edge-to-edge; the header auto-hides and reappears on hover (try it).</p>
+    </div>
+    <div class="demo-hint">container — header pinned · full — hover the top edge to reveal</div>
+  </div>
+</section>
+
+<script>
+  const pageEl=document.getElementById('page');
+
+  function setMode(full){
+    pageEl.classList.toggle('full', full);
+    // in full mode the header is auto-hidden; force it back for the demo cue
+    if(full){ pageEl.querySelector('.pv').style.opacity=1; } // revealed once so user sees it
+  }
+  function go(id){
+    document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+    if(id==='page-f'){ pageEl.classList.add('full'); document.getElementById('page').classList.add('active'); }
+    else if(id==='page'){ pageEl.classList.remove('full'); document.getElementById('page').classList.add('active'); }
+    else { document.getElementById(id).classList.add('active'); }
+    document.querySelectorAll('.mock-tab button').forEach(b=>b.classList.toggle('active', b.dataset.s===id));
+    window.scrollTo(0,0);
+  }
+  document.querySelectorAll('.mock-tab button').forEach(b=>b.addEventListener('click',()=>go(b.dataset.s)));
+
+  document.querySelectorAll('#library .row').forEach(r=>r.addEventListener('click',()=>go('page')));
+  document.getElementById('btnBack').addEventListener('click',()=>go('library'));
+  document.getElementById('btnMode').addEventListener('click',ev=>{
+    ev.stopPropagation();
+    go(pageEl.classList.contains('full') ? 'page' : 'page-f');
+  });
+  document.getElementById('btnPop').addEventListener('click',ev=>{ev.stopPropagation(); window.open('mockup-page.html','_blank','noopener');});
+
+  // full-mode header auto-hide on hover
+  const pv=pageEl.querySelector('.pv');
+  pageEl.addEventListener('mouseenter',()=>{ if(pageEl.classList.contains('full')) pv.style.opacity=1; });
+  pageEl.addEventListener('mouseleave',()=>{ if(pageEl.classList.contains('full')) pv.style.opacity=0; });
+</script>
+</body>
+</html>

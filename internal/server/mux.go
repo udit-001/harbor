@@ -95,6 +95,7 @@ func NewMux(store *db.Store, devCSS bool) *http.ServeMux {
 	mux.HandleFunc("GET /api/workspaces/{id}", jsonHandler(handleGetWorkspace(store)))
 	mux.HandleFunc("GET /api/stats", jsonHandler(handleStats(store)))
 	mux.HandleFunc("GET /api/search", jsonHandler(handleSearch(store)))
+	mux.HandleFunc("GET /api/pages", handleListFragment(store))
 
 	// App pages
 	mux.HandleFunc("GET /", handleAppShell(store))
@@ -230,25 +231,129 @@ func handleAboutPage(store *db.Store) http.HandlerFunc {
 	}
 }
 
-// handleAppShell serves the dashboard home page: a workspace grid. It is
-// rebuilt by later tickets as Harbor's page/tag/workspace-of-pages surface.
+// handleAppShell serves the Harbor Library home ("decide" surface): sidebar of
+// workspaces + tags, status segment, live-search box, and the page list. Query
+// params (status/workspace/tag/q) narrow the list via server-side render.
 func handleAppShell(store *db.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {
 			writeNotFound(w, "Page not found", "The page you're looking for doesn't exist.")
 			return
 		}
-
-		ws, _ := store.GetWorkspaces()
-		data := render.DashboardData{Stats: render.Stats{Workspaces: len(ws)}}
-		for _, w := range ws {
-			data.Workspaces = append(data.Workspaces, render.WorkspaceCard{
-				Name: w.Name, Topic: w.Topic, LastStudied: w.LastStudied,
-			})
-		}
-
-		writePage(w, "Dashboard", "", render.Dashboard(data))
+		data := buildLibraryData(store, r)
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(render.Library(data)))
 	}
+}
+
+// handleListFragment serves the library list fragment (rows or empty state) for
+// the live-search box: ?q=… plus the current status/workspace/tag narrowings.
+func handleListFragment(store *db.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		rows := libraryRows(store, pageFilterFromQuery(r), r.URL.Query().Get("q"))
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(render.LibraryRows(rows)))
+	}
+}
+
+func pageFilterFromQuery(r *http.Request) db.PageFilter {
+	return db.PageFilter{
+		Status:        r.URL.Query().Get("status"),
+		WorkspaceSlug: r.URL.Query().Get("workspace"),
+		TagName:       r.URL.Query().Get("tag"),
+	}
+}
+
+// libraryRows builds the render rows for a filter. q (when set) goes through the
+// page FTS; otherwise it's a plain filtered list.
+func libraryRows(store *db.Store, filter db.PageFilter, q string) []render.PageRow {
+	rows := make([]render.PageRow, 0, 16)
+	var (
+		pages []db.Page
+		err   error
+	)
+	if q != "" {
+		pages, err = store.SearchPages(q, filter)
+	} else {
+		pages, err = store.ListPages(filter)
+	}
+	if err != nil {
+		return rows
+	}
+	for _, p := range pages {
+		wsName := ""
+		if ws, werr := store.GetWorkspace(p.WorkspaceID); werr == nil {
+			wsName = ws.Name
+		}
+		tags := []string{}
+		if ts, terr := store.TagsForPage(p.Slug); terr == nil {
+			for _, t := range ts {
+				tags = append(tags, t.Name)
+			}
+		}
+		rows = append(rows, render.PageRow{
+			Slug:      p.Slug,
+			Title:     p.Title,
+			Desc:      p.Description,
+			Workspace: wsName,
+			Status:    p.Status,
+			Tags:      tags,
+			Updated:   shortDate(p.UpdatedAt),
+		})
+	}
+	return rows
+}
+
+func buildLibraryData(store *db.Store, r *http.Request) render.LibraryData {
+	filter := pageFilterFromQuery(r)
+	q := r.URL.Query().Get("q")
+
+	data := render.LibraryData{
+		Filter: render.LibraryFilter{
+			Status:    filter.Status,
+			Workspace: filter.WorkspaceSlug,
+			Tag:       filter.TagName,
+			Q:         q,
+		},
+	}
+
+	if byWs, err := store.PagesCountByWorkspace(); err == nil {
+		for _, w := range mustWorkspaces(store) {
+			data.Workspaces = append(data.Workspaces, render.LibrarySection{Name: w.Name, Count: byWs[w.Name]})
+		}
+	}
+	if byTag, err := store.PagesCountByTag(); err == nil {
+		for _, t := range mustTags(store) {
+			data.Tags = append(data.Tags, render.LibrarySection{Name: t.Name, Count: byTag[t.Name]})
+		}
+	}
+
+	data.Pages = libraryRows(store, filter, q)
+	data.Total = len(data.Pages)
+	return data
+}
+
+func mustWorkspaces(store *db.Store) []db.Workspace {
+	ws, err := store.GetWorkspaces()
+	if err != nil {
+		return nil
+	}
+	return ws
+}
+
+func mustTags(store *db.Store) []db.Tag {
+	tags, err := store.ListTags()
+	if err != nil {
+		return nil
+	}
+	return tags
+}
+
+func shortDate(ts string) string {
+	if len(ts) >= 10 {
+		return ts[:10]
+	}
+	return ts
 }
 
 // handleWorkspacePage serves a workspace landing page.

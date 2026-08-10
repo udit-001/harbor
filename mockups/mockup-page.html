@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Revenue Deep Dive — the page itself</title>
+<style>
+  /* This is the AGENT'S OWN styling — proving the page is byte-for-byte itself.
+     Harbor never restyles it; it just serves it as-is. */
+  :root{ background:#0d1117; color:#e6edf3; }
+  body{ font-family:Georgia,'Times New Roman',serif; max-width:720px; margin:0 auto;
+    padding:72px 24px 96px; line-height:1.7; }
+  h1{ font-size:2.2rem; font-weight:500; color:#58a6ff; margin-bottom:.2em; }
+  .sub{ color:#8b949e; font-size:1rem; font-family:ui-monospace,Menlo,monospace; margin-bottom:2em; }
+  .kpi{ display:flex; gap:24px; border-top:1px solid #21262d; border-bottom:1px solid #21262d; padding:22px 0; margin:2em 0; }
+  .kpi b{ font-size:2rem; color:#3fb950; font-family:ui-monospace,Menlo,monospace; display:block; }
+  .kpi span{ color:#8b949e; font-size:.85rem; }
+  a{ color:#58a6ff; }
+  .bars span{ display:inline-block; width:26px; height:8px; margin-right:4px; border-radius:2px; background:#238636; }
+  .bars span.s1{ height:20px; background:#1f6feb }
+  .bars span.s2{ height:32px; background:#58a6ff }
+  .bars span.s3{ height:44px; background:#9e6a03 }
+</style>
+</head>
+<body>
+  <p class="sub">income-tracker · finance · report</p>
+  <h1>Revenue Deep Dive</h1>
+  <p class="sub">Q3 · 2026</p>
+
+  <div class="kpi">
+    <div><b>+12.4%</b><span>revenue</span></div>
+    <div><b>0.8%</b><span>churn</span></div>
+    <div><b>1.9×</b><span>expansion</span></div>
+  </div>
+
+  <p>This is the page <em>as the agent wrote it</em> — a dark, editorial look of its own.
+  Opened via <strong>Pop out</strong>, it lands in a clean new tab with zero harbor chrome.
+  Inside the shell it renders the exact same way, just framed.</p>
+
+  <div class="bars">
+    <span class="s1"></span><span class="s2"></span><span class="s3"></span>
+    <span class="s1"></span><span class="s2"></span><span class="s3"></span>
+  </div>
+</body>
+</html>

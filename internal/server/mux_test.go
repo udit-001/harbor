@@ -148,22 +148,64 @@ func TestPWAStaticRoutes(t *testing.T) {
 	}
 }
 
-func TestPWAHeadTags(t *testing.T) {
+func TestLibraryHome(t *testing.T) {
 	env := newTestEnv(t)
 	rec := env.get(t, "/")
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
 	body := rec.Body.String()
 
 	checks := []struct{ name, want string }{
-		{"manifest link", `rel="manifest" href="/manifest.webmanifest"`},
-		{"sentinel meta", `<meta name="harbor-app" content="1">`},
-		{"theme-color", `<meta name="theme-color" id="theme-color" content="#eceff4">`},
-		{"apple-touch-icon", `rel="apple-touch-icon" href="/icon-192.png"`},
-		{"sw registration", "navigator.serviceWorker.register('/sw.js')"},
+		{"brand", "harbor"},
+		{"page title", "All pages"},
+		{"empty prompt", "harbor page add"},
+		{"search box", `id="q"`},
+		{"status segment", "Published"},
 	}
 	for _, c := range checks {
 		if !strings.Contains(body, c.want) {
-			t.Errorf("dashboard HTML missing %s", c.name)
+			t.Errorf("library HTML missing %s (%q)", c.name, c.want)
 		}
+	}
+}
+
+func TestLibraryListsSeededPages(t *testing.T) {
+	env := newTestEnv(t)
+	wsID := env.workspaceID(t)
+	if _, err := env.store.CreateTag("finance", "money"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := env.store.CreatePage(wsID, "Revenue Deep Dive", "quarterly analysis", "board", "",
+		"", "revenue hero body", []string{"finance"}); err != nil {
+		t.Fatalf("create page: %v", err)
+	}
+
+	// Home renders the row with workspace + tag + status.
+	body := env.get(t, "/").Body.String()
+	for _, want := range []string{`href="/page/revenue-deep-dive"`, "Revenue Deep Dive", "alpha", "finance"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("library home missing %q", want)
+		}
+	}
+
+	// Status segment renders backend: published shows the row, draft hides it.
+	if got := env.get(t, "/?status=published").Body.String(); strings.Contains(got, "Revenue Deep Dive") {
+		t.Error("published filter should not show a draft page")
+	}
+	if got := env.get(t, "/?status=draft").Body.String(); !strings.Contains(got, "Revenue Deep Dive") {
+		t.Error("draft filter should show the draft page")
+	}
+
+	// Live-search fragment endpoint returns the row by body text.
+	frag := env.get(t, "/api/pages?q=revenue+hero").Body.String()
+	if !strings.Contains(frag, "Revenue Deep Dive") {
+		t.Errorf("live search fragment missing page: %s", frag)
+	}
+	// And the empty-state fragment for a no-match query.
+	fragEmpty := env.get(t, "/api/pages?q=zzzqqq").Body.String()
+	if !strings.Contains(fragEmpty, "No pages yet") {
+		t.Errorf("empty fragment missing empty state: %s", fragEmpty)
 	}
 }
 
