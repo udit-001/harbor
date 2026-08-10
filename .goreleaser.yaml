@@ -49,9 +49,9 @@ archives:
       - tar.gz
     format_overrides:
       - goos: windows
+        # raw harbor.exe (portable, for winget); a zip would be redundant
         formats:
-          - zip
-          - binary # also upload the raw harbor.exe for winget (portable)
+          - binary
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     files:
