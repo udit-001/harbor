@@ -348,7 +348,7 @@ func installFamilies(selectedFamilies []installFamily, project bool) error {
 			errors = append(errors, fmt.Sprintf("%s: %v", f.name, err))
 			continue
 		}
-		fmt.Printf("  ✓ %s teach to %s/ (%d files) — %s\n", action, baseDir, n, strings.Join(f.readers, ", "))
+		fmt.Printf("  ✓ %s %s to %s/ (%d files) — %s\n", action, skills.SkillName, baseDir, n, strings.Join(f.readers, ", "))
 	}
 	fmt.Println()
 	printNextSteps()
@@ -506,9 +506,9 @@ func offerSkillInstall() {
 		names[i] = p.name
 	}
 	if len(detected) == 1 {
-		fmt.Printf("  Detected %s — install the harbor teaching skill? [Y/n] ", detected[0].name)
+		fmt.Printf("  Detected %s — install the harbor skill? [Y/n] ", detected[0].name)
 	} else {
-		fmt.Printf("  Detected %s — install the harbor teaching skill? [Y/n] ", strings.Join(names, ", "))
+		fmt.Printf("  Detected %s — install the harbor skill? [Y/n] ", strings.Join(names, ", "))
 	}
 	if !promptDefaultYes() {
 		return
@@ -582,6 +582,6 @@ func promptDefaultYes() bool {
 func printNextSteps() {
 	fmt.Println("  Next steps:")
 	fmt.Printf("  - Skills are auto-discovered at session start\n")
-	fmt.Printf("  - Ask your agent to manage learning with harbor CLI\n")
+	fmt.Printf("  - Ask your agent to organize and find HTML pages with harbor\n")
 	fmt.Printf("  - Run 'harbor skills uninstall' to remove installed skills\n")
 }

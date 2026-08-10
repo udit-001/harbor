@@ -53,16 +53,15 @@ func mustStore(cmd *cobra.Command) *db.Store {
 
 var rootCmd = &cobra.Command{
 	Use:     "harbor",
-	Short:   "Manage learning lessons and workspaces",
+	Short:   "Manage library pages and workspaces",
 	Version: version.Version,
-	Long: `A CLI tool to create and manage learning workspaces.
+	Long: `A CLI tool to organize and find the HTML pages your agent builds.
 
-Data is stored in a local SQLite database. Each workspace is a
-directory containing MISSION.md, lessons/, learning-records/,
-reference/, assets/, RESOURCES.md, and NOTES.md.
+Data is stored in a local SQLite database; pages land in a managed store. Each
+workspace is a named body of work that pages belong to.
 
 Use 'harbor init' to set up harbor, then 'harbor workspace create'
-to start a workspace.
+to start a workspace, and 'harbor page add' to import HTML pages.
 
 Most commands support --json for machine-readable output.
 When only one workspace exists, most commands use it automatically
