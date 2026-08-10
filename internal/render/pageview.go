@@ -278,11 +278,12 @@ func commentPanelScript(slug string) string {
     pickStyle=null;
     clearHover();
   }
-  // Element clicks are captured only while the compose target is still neutral
-  // (whole page) and the panel is open. Once anchored — or once the user types
-  // or selects text — clicks pass straight through to the page, so composing
-  // never hijacks normal reading. This is what removes the old Pick button step.
-  function canPickElement(){ return open && state.anchor===''; }
+  // Element clicks are captured while the panel is open, letting the user pick
+  // and — importantly — re-target: clicking a different element simply moves the
+  // anchor (confirmed highlight follows). Hover shows the candidate so a click
+  // is never a surprise. Clear detaches back to a whole-page comment; closing
+  // the panel returns clicks to the page entirely.
+  function canPickElement(){ return open; }
   function clearHover(){ if(hoverEl){ hoverEl.classList.remove('cp-hover'); hoverEl=null; } }
   function clearAnchored(){ if(anchoredEl){ anchoredEl.classList.remove('cp-anchored'); anchoredEl=null; } }
   // Persist a marker on the element the current target points at (if it can be
