@@ -284,6 +284,13 @@ func commentPanelScript(slug string) string {
   // is never a surprise. Clear detaches back to a whole-page comment; closing
   // the panel returns clicks to the page entirely.
   function canPickElement(){ return open; }
+  // True when the user has a live text selection in the page — the signal that
+  // a drag is quoting text, so a trailing click must NOT turn into an element
+  // pick, and the element hover preview should stand aside.
+  function hasTextSelection(){
+    const win=frame.contentWindow, sel=win&&win.getSelection();
+    return !!(sel && sel.toString().trim());
+  }
   function clearHover(){ if(hoverEl){ hoverEl.classList.remove('cp-hover'); hoverEl=null; } }
   function clearAnchored(){ if(anchoredEl){ anchoredEl.classList.remove('cp-anchored'); anchoredEl=null; } }
   // Persist a marker on the element the current target points at (if it can be
@@ -297,7 +304,7 @@ func commentPanelScript(slug string) string {
   // Track the deepest element under the pointer while an element pick is live,
   // so hovering previews exactly what a click would anchor to.
   function trackHover(ev){
-    if(!canPickElement()){ clearHover(); return; }
+    if(!canPickElement()||hasTextSelection()){ clearHover(); return; }
     const el=doc.elementFromPoint(ev.clientX,ev.clientY);
     if(el===hoverEl) return;
     clearHover();
@@ -361,6 +368,7 @@ func commentPanelScript(slug string) string {
     doc.addEventListener('mousemove',trackHover,true);
     doc.addEventListener('click',(ev)=>{
       if(!canPickElement()) return;
+      if(hasTextSelection()) return; // a drag-selection just became a quote; don't override it
       state={type:'element',anchor:cssPath(ev.target),quote:''};
       renderState(); setOpen(true);
     },true);
