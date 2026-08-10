@@ -1,6 +1,6 @@
 ---
 name: harbor
-description: Use harbor when you build a standalone HTML page a human will want to see or keep — register it (harbor page add), group it into a workspace (harbor workspace), or tag it (harbor tag); also when a human asks you to save, organize, find, or review pages (harbor search, page list/read), to run the dashboard (harbor start / stop), or to answer page feedback (harbor comments list/watch, harbor change add).
+description: Use harbor when you build a standalone HTML page — register it (harbor page add), group it into a workspace (harbor workspace), or tag it (harbor tag); also when a human asks you to save, organize, find, or review pages (harbor search, page list/read), to run the dashboard (harbor start / stop), or to answer page feedback (harbor comments list/watch, harbor change add).
 ---
 
 # Harbor
@@ -11,13 +11,19 @@ dashboard.
 
 Write it `harbor` — the British spelling `harbour` is wrong.
 
-The leading idea: **a page is worth keeping if a human will want to see it.**
-When you make a standalone HTML artifact, `harbor page add` imports a copy into
-a managed store — safe from temp-dir wipes and out of project folders — and
-makes it searchable and browseable. Anything unregistered is simply not in the
-library.
+The leading idea: **any standalone HTML page you build belongs in harbor.**
+Register it the moment you make one — `harbor page add` imports a copy into a
+managed store (safe from temp-dir wipes, out of project folders) and makes it
+searchable and browseable. The bar for importing is low and automatic: if a
+human would want to see or keep it, it goes in the library without waiting to be
+asked. A page you made that isn't in harbor is the exception, not the rule.
 
 ## Workflow (do these in order)
+
+**First, the gate — decided before importing:** is it a standalone HTML page a
+human would want to see or keep? That's the worth-keeping test. Yes → it belongs
+in the library (import it). A truly throwaway fragment (a one-off scratch
+layout, a dead-end mockup) → skip harbor; don't pollute the library.
 
 1. **Create the workspace first.** A page belongs in a named body of work:
    `harbor workspace create "<name>" --description "<what this work is>"`.
@@ -43,9 +49,9 @@ library.
 
 ## Deterministic behaviors
 
-- **Import keep-worthy pages by default.** When you produce a standalone HTML
-  page a human will want to see, add it to the library without waiting to be
-  asked — the "worth keeping" test is the gate, not an explicit instruction.
+- **Every standalone HTML page you build belongs in harbor by default.** Import
+  it the moment you produce one — don't wait to be asked. The worth-keeping
+  test is the low, automatic gate: if a human would want to see it, it's in.
 - `harbor page add` **fails fast** if the workspace doesn't exist — the error
   prints the exact `harbor workspace create` command. Run that command yourself;
   the import won't auto-create the workspace behind your back.
