@@ -88,7 +88,7 @@ func pageViewScript(d PageViewData) string {
 	return `<script>
 (function(){
   const slug=document.body.dataset.slug;
-  const KEY='harbor_view_'+slug;
+  const KEY='harbor_view_v2_'+slug; // v2: collapsed (container) is the default; ignores pre-v2 saved "full"
   const pv=document.getElementById('pv');
   let mode=localStorage.getItem(KEY)||'container';
   // sync() sets the envelope mode AND the header state together, so toggling to
@@ -158,9 +158,8 @@ func commentPanelMarkup() string {
     <button class="icon-btn cp-close" id="commentClose" aria-label="Close comments" title="Close">` + iconClose() + `</button>
   </div>
   <div class="cp-body">
-    <div class="cp-capture" id="cpCapture">Select text in the page to quote it, or pick an element to anchor your comment to.</div>
+    <div class="cp-capture" id="cpCapture">Click an element in the page, or select its text, to anchor your comment — then type and post.</div>
     <div class="cp-row">
-      <button type="button" class="cp-pick" id="cpPick" aria-pressed="false">Pick element</button>
       <select id="cpType" aria-label="Comment type">
         <option value="general">Whole page</option>
         <option value="selection">Text selection</option>
@@ -208,7 +207,6 @@ func commentPanelScript(slug string) string {
   const form=document.getElementById('commentForm');
   const body=document.getElementById('cpBody');
   const typeSel=document.getElementById('cpType');
-  const pickBtn=document.getElementById('cpPick');
   const anchorEl=document.getElementById('cpAnchor');
   const quoteWrap=document.getElementById('cpQuoteWrap');
   const quoteEl=document.getElementById('cpQuote');
@@ -219,7 +217,6 @@ func commentPanelScript(slug string) string {
   const LIST_URL='/api/pages/'+encodeURIComponent(slug)+'/comments';
 
   let open=false;
-  let picking=false;
   let doc=null;
   // state: what the comment is anchored to (captured from the iframe).
   let state={type:'general',anchor:'',quote:''};
@@ -230,8 +227,8 @@ func commentPanelScript(slug string) string {
     state={type:'general',anchor:'',quote:''};
     body.value='';
     typeSel.value='general';
-    setPicking(false);
     renderState();
+    dropPickStyle();
   }
   function setOpen(v){
     open=v;
@@ -247,52 +244,64 @@ func commentPanelScript(slug string) string {
   }
   function showHeader(){ const pv=document.getElementById('pv'); pv&&pv.classList.add('is-visible'); }
 
-  // ── Element-pick highlight ────────────────────────────────────────────────
-  // While pick mode is armed, hovering an element in the page highlights it
-  // with the Nord accent so the user can see exactly what a click will anchor
-  // to. The highlight is injected into the iframe (ephemeral, never saved) and
-  // removed on disarm.
-  let pickStyle=null, hoverEl=null;
-  function setPicking(on){
-    picking=on;
-    pickBtn.classList.toggle('active',on);
-    pickBtn.setAttribute('aria-pressed',String(on));
-    if(on){
-      errEl.textContent='Click an element in the page to anchor to it.'; errEl.classList.add('show');
-      addPickHover();
-    } else {
-      errEl.classList.remove('show');
-      removePickHover();
-    }
-  }
-  function addPickHover(){
-    removePickHover();
-    if(!doc||!doc.head) return;
+  // ── Pick highlight: candidate + confirmed ─────────────────────────────
+  // The pending target has two life-phases:
+  //   • candidate  — while armed, hovering an element highlights it (cp-hover)
+  //                  so the user sees exactly what a click will anchor to.
+  //   • confirmed  — after a pick (or selection capture), the chosen element
+  //                  stays highlighted (cp-anchored) to preserve context of
+  //                  what the comment points at, until the target is changed
+  //                  or cleared.
+  // The styles are injected into the same-origin iframe (ephemeral, never
+  // saved); the accent matches the shell theme.
+  let pickStyle=null, hoverEl=null, anchoredEl=null;
+  function accentTint(){
     const theme=document.documentElement.dataset.theme||'light';
     const accent=(theme==='dark')?'#88c0d0':'#5e81ac';
     const tint=(theme==='dark')?'rgba(136,192,208,.20)':'rgba(94,129,172,.14)';
+    return {accent,tint};
+  }
+  function ensurePickStyle(){
+    if(!doc||!doc.head) return;
+    if(pickStyle&&pickStyle.parentNode) return;
+    const {accent,tint}=accentTint();
     pickStyle=doc.createElement('style'); pickStyle.id='cp-pick-style';
     pickStyle.textContent=
-      'html.cp-picking,html.cp-picking *{cursor:pointer!important}'+
       '.cp-hover{outline:2px solid '+accent+'!important;outline-offset:-2px!important;'+
-      'box-shadow:inset 0 0 0 1000px '+tint+'!important}';
+        'box-shadow:inset 0 0 0 1000px '+tint+'!important;cursor:pointer!important}'+
+      '.cp-anchored{outline:2px solid '+accent+'!important;outline-offset:1px!important;'+
+        'box-shadow:0 0 0 2px '+tint+',inset 0 0 0 600px '+tint+'!important;border-radius:2px}';
     doc.head.appendChild(pickStyle);
-    doc.documentElement.classList.add('cp-picking');
   }
-  function removePickHover(){
+  function dropPickStyle(){
     if(pickStyle&&pickStyle.parentNode) pickStyle.parentNode.removeChild(pickStyle);
     pickStyle=null;
-    if(doc) doc.documentElement.classList.remove('cp-picking');
-    if(hoverEl){ hoverEl.classList.remove('cp-hover'); hoverEl=null; }
+    clearHover();
   }
-  // Track the deepest element under the pointer while picking and highlight it.
+  // Element clicks are captured only while the compose target is still neutral
+  // (whole page) and the panel is open. Once anchored — or once the user types
+  // or selects text — clicks pass straight through to the page, so composing
+  // never hijacks normal reading. This is what removes the old Pick button step.
+  function canPickElement(){ return open && state.anchor===''; }
+  function clearHover(){ if(hoverEl){ hoverEl.classList.remove('cp-hover'); hoverEl=null; } }
+  function clearAnchored(){ if(anchoredEl){ anchoredEl.classList.remove('cp-anchored'); anchoredEl=null; } }
+  // Persist a marker on the element the current target points at (if it can be
+  // resolved back in the page) — the confirmation context after a pick.
+  function applyAnchorHighlight(){
+    clearAnchored();
+    if(!doc||!state.anchor) return;
+    const el=doc.querySelector(state.anchor);
+    if(el&&el.nodeType===1){ ensurePickStyle(); anchoredEl=el; el.classList.add('cp-anchored'); }
+  }
+  // Track the deepest element under the pointer while an element pick is live,
+  // so hovering previews exactly what a click would anchor to.
   function trackHover(ev){
-    if(!picking) return;
+    if(!canPickElement()){ clearHover(); return; }
     const el=doc.elementFromPoint(ev.clientX,ev.clientY);
     if(el===hoverEl) return;
-    if(hoverEl) hoverEl.classList.remove('cp-hover');
+    clearHover();
     hoverEl=el;
-    if(hoverEl) hoverEl.classList.add('cp-hover');
+    if(hoverEl){ ensurePickStyle(); hoverEl.classList.add('cp-hover'); }
   }
 
   btn.addEventListener('click',()=>setOpen(!open));
@@ -307,6 +316,7 @@ func commentPanelScript(slug string) string {
     if(state.quote){ quoteWrap.hidden=false; quoteEl.textContent=state.quote; }
     else quoteWrap.hidden=true;
     clearBtn.hidden=(state.anchor==='');
+    applyAnchorHighlight();
   }
   typeSel.addEventListener('change',()=>{ state.type=typeSel.value; });
   clearBtn.addEventListener('click',resetCompose);
@@ -349,15 +359,13 @@ func commentPanelScript(slug string) string {
     },true);
     doc.addEventListener('mousemove',trackHover,true);
     doc.addEventListener('click',(ev)=>{
-      if(!picking) return;
+      if(!canPickElement()) return;
       state={type:'element',anchor:cssPath(ev.target),quote:''};
-      setPicking(false);
       renderState(); setOpen(true);
     },true);
   }
   frame.addEventListener('load',wire);
   wire();
-  pickBtn.addEventListener('click',()=>{ setPicking(!picking); });
 
   // Submit the pending comment.
   form.addEventListener('submit',(e)=>{
@@ -468,10 +476,6 @@ transition:transform .28s var(--ease),opacity .28s var(--ease)}
 .cp-capture{font-size:12.5px;color:var(--muted);line-height:1.6;background:var(--surface2);
 border:1px dashed var(--border);border-radius:var(--rs);padding:12px 14px;margin:2px 0 4px}
 .cp-row{display:flex;align-items:center;gap:10px;margin-top:14px}
-.cp-pick{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:var(--rs);
-padding:7px 11px;font:500 12.5px var(--font);cursor:pointer}
-.cp-pick:hover{background:var(--surface2)}
-.cp-pick.active{color:var(--acc);border-color:var(--acc);background:var(--acc-soft)}
 .cp-row select{flex:1;border:1px solid var(--border);background:var(--surface);color:var(--text);
 border-radius:var(--rs);padding:7px 9px;font:400 13px var(--font)}
 .cp-fields{display:flex;flex-direction:column;gap:12px;padding-top:2px;margin-top:14px}
@@ -491,7 +495,7 @@ border-left:3px solid var(--border);padding:2px 0 2px 10px}
 .cp-body textarea{width:100%;min-height:96px;resize:vertical;border:1px solid var(--border);
 border-radius:var(--rs);background:var(--surface);color:var(--text);padding:10px 12px;
 font:400 13px var(--font);line-height:1.6}
-.cp-body textarea:focus-visible,.cp-pick:focus-visible,.cp-close:focus-visible,.cp-submit:focus-visible,
+.cp-body textarea:focus-visible,.cp-close:focus-visible,.cp-submit:focus-visible,
 .cp-row select:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
 .cp-actions{display:flex;justify-content:flex-end;padding-top:2px}
 .cp-submit{border:0;border-radius:var(--rs);background:var(--acc);color:#fff;padding:9px 18px;
