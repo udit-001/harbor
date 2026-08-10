@@ -27,11 +27,6 @@ func (w *WorkspaceStore) Layout() Layout { return NewLayout(w.ws.Path) }
 // db returns the underlying *sqlx.DB for direct query access.
 func (w *WorkspaceStore) db() *sqlx.DB { return w.store.db }
 
-// Touch updates the last_studied timestamp for this workspace.
-func (w *WorkspaceStore) Touch() error {
-	return w.store.TouchWorkspace(w.ws.ID)
-}
-
 // UpdateTopic updates the topic field for this workspace.
 func (w *WorkspaceStore) UpdateTopic(topic string) error {
 	return w.store.UpdateWorkspaceTopic(w.ws.ID, topic)

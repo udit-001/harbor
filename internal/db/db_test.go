@@ -72,76 +72,63 @@ func TestOpenSetsSynchronousNormal(t *testing.T) {
 	}
 }
 
-// TestFTSUpdateTriggersScopedToIndexedColumns asserts the _au triggers were
-// scoped via AFTER UPDATE OF title, summary, body_text (LEARN-106) so that
-// non-indexed UPDATEs (e.g. learning_records supersede: status/superseded_by/
-// updated_at) skip the FTS delete+insert. If a future migration recreates
-// these triggers un-scoped, this fails.
+// TestFTSUpdateTriggersScopedToIndexedColumns asserts the pages_au trigger is
+// scoped via AFTER UPDATE OF title, description, context, body_text so that
+// non-indexed UPDATEs (status, updated_at, origin_path) skip the FTS
+// delete+insert. If a future migration recreates the trigger un-scoped, this
+// fails.
 func TestFTSUpdateTriggersScopedToIndexedColumns(t *testing.T) {
 	store := newTestStore(t)
-	for _, trig := range []string{"lessons_au", "refs_au", "records_au"} {
-		var sql string
-		if err := store.SQL().QueryRow(
-			"SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?", trig,
-		).Scan(&sql); err != nil {
-			t.Fatalf("query %s definition: %v", trig, err)
-		}
-		if !strings.Contains(sql, "UPDATE OF") {
-			t.Errorf("%s not scoped to indexed columns — missing 'UPDATE OF' in:\n%s", trig, sql)
-		}
+	var sql string
+	if err := store.SQL().QueryRow(
+		"SELECT sql FROM sqlite_master WHERE type='trigger' AND name='pages_au'",
+	).Scan(&sql); err != nil {
+		t.Fatalf("query pages_au definition: %v", err)
+	}
+	if !strings.Contains(sql, "UPDATE OF") {
+		t.Errorf("pages_au not scoped to indexed columns — missing 'UPDATE OF' in:\n%s", sql)
 	}
 }
 
-// TestScrapMigrationApplies asserts the global-scratchpad migration (LEARN-181)
-// runs cleanly on a fresh DB: the scraps/tags/scrap_tags tables exist,
-// scraps_fts is an external-content FTS5 index over scraps, and its _au
-// trigger is scoped to the indexed columns (the LEARN-106 pattern).
-func TestScrapMigrationApplies(t *testing.T) {
+// TestBaselineMigratesHarborSchema asserts the fresh Harbor-only migration set
+// creates the library schema and nothing Pharos: the page library tables
+// (workspaces/tags/pages/comments/changes) exist, the scratchpad (scraps) does
+// NOT, and pages_fts is external-content over pages.
+func TestBaselineMigratesHarborSchema(t *testing.T) {
 	store := newTestStore(t)
-	db := store.SQL()
+	dbc := store.SQL()
 
-	var n int
-	if err := db.QueryRow(
-		"SELECT count(*) FROM sqlite_master WHERE type='table' AND name IN ('scraps','tags','scrap_tags')",
-	).Scan(&n); err != nil {
-		t.Fatalf("query scrap tables: %v", err)
+	have := func(table string) bool {
+		var n int
+		if err := dbc.QueryRow("SELECT count(*) FROM sqlite_master WHERE type='table' AND name=?", table).Scan(&n); err != nil {
+			t.Fatalf("query table %s: %v", table, err)
+		}
+		return n == 1
 	}
-	if n != 3 {
-		t.Fatalf("scrap tables present = %d, want 3", n)
+	for _, table := range []string{"workspaces", "pages", "page_tags", "tags", "comments", "changes"} {
+		if !have(table) {
+			t.Errorf("baseline missing table %q", table)
+		}
+	}
+	if have("scraps") {
+		t.Error("scraps table should not exist in the Harbor baseline (Pharos cruft)")
 	}
 
-	// scraps_fts must be external-content over scraps (content-rowid sync), so
-	// body edits stay searchable without manually dropping/recreating the index.
+	// pages_fts must be external-content over pages (content-rowid sync).
 	var ftsCreate string
-	if err := db.QueryRow(
-		"SELECT sql FROM sqlite_master WHERE type='table' AND name='scraps_fts'",
-	).Scan(&ftsCreate); err != nil {
-		t.Fatalf("query scraps_fts definition: %v", err)
+	if err := dbc.QueryRow("SELECT sql FROM sqlite_master WHERE type='table' AND name='pages_fts'").Scan(&ftsCreate); err != nil {
+		t.Fatalf("query pages_fts: %v", err)
 	}
-	if !strings.Contains(ftsCreate, "content=scraps") {
-		t.Errorf("scraps_fts not external content over scraps:\n%s", ftsCreate)
+	if !strings.Contains(ftsCreate, "content=pages") {
+		t.Errorf("pages_fts not external content over pages:\n%s", ftsCreate)
 	}
 
-	// Tolerate the empty-init creation; the FTS triggers live on the scraps base
-	// table regardless (scraps_ai / scraps_ad / scraps_au).
-	for _, trig := range []string{"scraps_ai", "scraps_ad", "scraps_au"} {
-		var sql string
-		if err := db.QueryRow(
-			"SELECT sql FROM sqlite_master WHERE type='trigger' AND name=?", trig,
-		).Scan(&sql); err != nil {
-			t.Fatalf("query %s definition: %v", trig, err)
-		}
-		if trig == "scraps_au" && !strings.Contains(sql, "UPDATE OF") {
-			t.Errorf("%s not scoped to indexed columns — missing 'UPDATE OF' in:\n%s", trig, sql)
-		}
-	}
-
-	// Foreign-key support is on, so the join rows cascade on scrap/tag delete.
+	// Foreign-key support is on, so join rows cascade.
 	var fkOn int
-	if err := db.QueryRow("PRAGMA foreign_keys").Scan(&fkOn); err != nil {
+	if err := dbc.QueryRow("PRAGMA foreign_keys").Scan(&fkOn); err != nil {
 		t.Fatalf("query foreign_keys: %v", err)
 	}
 	if fkOn != 1 {
-		t.Errorf("foreign_keys = %d, want 1 (for scrap_tags cascade)", fkOn)
+		t.Errorf("foreign_keys = %d, want 1", fkOn)
 	}
 }

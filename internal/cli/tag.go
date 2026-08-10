@@ -102,7 +102,7 @@ Example:
 var tagDeleteCmd = &cobra.Command{
 	Use:   "delete <name>",
 	Short: "Delete a tag",
-	Long: `Permanently delete a tag and detach it from all scraps.
+	Long: `Permanently delete a tag and detach it from all pages.
 
 Example:
   harbor tag delete "ml"`,
@@ -162,4 +162,13 @@ func printTagsTable(tags []db.Tag) error {
 	fmt.Print(formatTable([]string{"NAME", "DESCRIPTION"}, rows))
 	fmt.Println()
 	return nil
+}
+
+// tagNames flattens a tag slice to its names, for display and JSON.
+func tagNames(tags []db.Tag) []string {
+	out := make([]string, 0, len(tags))
+	for _, t := range tags {
+		out = append(out, t.Name)
+	}
+	return out
 }

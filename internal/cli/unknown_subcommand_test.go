@@ -24,8 +24,8 @@ func executeForTest(t *testing.T, args []string) error {
 }
 
 var parentCommands = []string{
-	"asset", "config", "migrate", "scrap", "skills",
-	"tag", "tailwind", "workspace",
+	"asset", "change", "comments", "config", "migrate", "page",
+	"skills", "tag", "tailwind", "workspace",
 }
 
 // TestParentCommandsRejectUnknownSubcommands guards that parent commands

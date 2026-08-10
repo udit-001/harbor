@@ -159,7 +159,8 @@ func TestLibraryHome(t *testing.T) {
 	checks := []struct{ name, want string }{
 		{"brand", "harbor"},
 		{"page title", "All pages"},
-		{"empty prompt", "harbor page add"},
+		{"empty prompt", "No pages yet"},
+		{"empty copy (human-facing, no CLI)", "nothing for you to do"},
 		{"search box", `id="q"`},
 		{"status segment", "Published"},
 	}
@@ -263,12 +264,11 @@ func TestWorkspaceNotFound(t *testing.T) {
 	}
 }
 
-func TestSearchAPIOverScraps(t *testing.T) {
+func TestSearchAPIOverPages(t *testing.T) {
 	env := newTestEnv(t)
-
-	// Seed a scrap (scratchpad is global — no workspace needed).
-	if _, err := env.store.CreateScrap("machine learning roadmap", "linear algebra first", []string{}); err != nil {
-		t.Fatalf("create scrap: %v", err)
+	wsID := env.workspaceID(t)
+	if _, err := env.store.CreatePage(wsID, "Machine Learning Roadmap", "linear algebra first", "career", "", "", "linear algebra body", nil); err != nil {
+		t.Fatalf("create page: %v", err)
 	}
 
 	rec := env.get(t, "/api/search?q=algebra")
@@ -280,9 +280,12 @@ func TestSearchAPIOverScraps(t *testing.T) {
 		t.Fatal(err)
 	}
 	if len(results) == 0 {
-		t.Fatal("search for 'algebra' returned no scrap results")
+		t.Fatal("search for 'algebra' returned no page results")
 	}
-	if results[0]["title"] != "machine learning roadmap" {
-		t.Errorf("first result title = %v, want the seeded scrap", results[0]["title"])
+	if results[0]["type"] != "page" || results[0]["title"] != "Machine Learning Roadmap" {
+		t.Errorf("first result = %v, want a page titled 'Machine Learning Roadmap'", results[0])
+	}
+	if url, _ := results[0]["url"].(string); url != "/page/machine-learning-roadmap" {
+		t.Errorf("result url = %v, want /page/machine-learning-roadmap", results[0]["url"])
 	}
 }

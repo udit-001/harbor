@@ -93,3 +93,14 @@ func runWithStore(t *testing.T, args []string, store *db.Store) string {
 	}
 	return buf.String()
 }
+
+// writeBodyFile writes the given content to a temp file and returns its path.
+// Used to seed HTML/body files for page import tests.
+func writeBodyFile(t *testing.T, content string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "body.html")
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write body file: %v", err)
+	}
+	return path
+}

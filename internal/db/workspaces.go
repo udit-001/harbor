@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 )
 
-const wsColumns = `id, name, topic, description, path, created_at, last_studied`
+const wsColumns = `id, name, topic, description, path, created_at`
 
 func scanWorkspace(row interface{ Scan(...any) error }) (Workspace, error) {
 	var w Workspace
-	err := row.Scan(&w.ID, &w.Name, &w.Topic, &w.Description, &w.Path, &w.CreatedAt, &w.LastStudied)
+	err := row.Scan(&w.ID, &w.Name, &w.Topic, &w.Description, &w.Path, &w.CreatedAt)
 	return w, err
 }
 
@@ -20,7 +20,7 @@ func scanWorkspaces(rows RowScanner) ([]Workspace, error) {
 
 // GetWorkspaces returns all workspaces, newest first.
 func (s *Store) GetWorkspaces() ([]Workspace, error) {
-	rows, err := s.db.Query(fmt.Sprintf("SELECT %s FROM workspaces ORDER BY last_studied DESC", wsColumns))
+	rows, err := s.db.Query(fmt.Sprintf("SELECT %s FROM workspaces ORDER BY created_at DESC", wsColumns))
 	if err != nil {
 		return nil, err
 	}
@@ -47,9 +47,9 @@ func (s *Store) GetWorkspaceByName(name string) (Workspace, error) {
 func (s *Store) AddWorkspace(w Workspace) (Workspace, error) {
 	now := nowTimestamp()
 	result, err := s.db.Exec(
-		`INSERT INTO workspaces (name, topic, description, path, created_at, last_studied)
-		 VALUES (?, ?, ?, ?, ?, ?)`,
-		w.Name, w.Topic, w.Description, w.Path, now, now,
+		`INSERT INTO workspaces (name, topic, description, path, created_at)
+		 VALUES (?, ?, ?, ?, ?)`,
+		w.Name, w.Topic, w.Description, w.Path, now,
 	)
 	if err != nil {
 		return Workspace{}, fmt.Errorf("add workspace: %w", err)
@@ -57,7 +57,6 @@ func (s *Store) AddWorkspace(w Workspace) (Workspace, error) {
 	id, _ := result.LastInsertId()
 	w.ID = id
 	w.CreatedAt = now
-	w.LastStudied = now
 	return w, nil
 }
 
@@ -120,13 +119,6 @@ func (s *Store) DeleteWorkspaceByName(name string) error {
 // UpdateWorkspaceTopic updates the topic field.
 func (s *Store) UpdateWorkspaceTopic(id int64, topic string) error {
 	_, err := s.db.Exec("UPDATE workspaces SET topic = ? WHERE id = ?", topic, id)
-	return err
-}
-
-// TouchWorkspace updates last_studied timestamp.
-func (s *Store) TouchWorkspace(id int64) error {
-	now := nowTimestamp()
-	_, err := s.db.Exec("UPDATE workspaces SET last_studied = ? WHERE id = ?", now, id)
 	return err
 }
 

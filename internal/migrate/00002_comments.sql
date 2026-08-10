@@ -1,15 +1,10 @@
 -- +goose Up
 
--- Feedback-loop data foundation (M2): anchored, page-scoped comments plus the
--- change markers the agent leaves in HTML when it acts on a comment. The human
--- writes comments from the shell (HARB-11); the agent reads the open queue, and
--- the changes table tracks which agent edit resolved which comment.
+-- The feedback loop: anchored human comments on pages, plus the agent's
+-- change records that the "what changed" walkthrough tours. The human writes
+-- comments from the shell; the agent responds by editing the page, marking the
+-- changed element (data-cf-change) and recording a change.
 
--- Comments: anchored human feedback on a page. type = selection | element |
--- general; anchor is the element's existing id or a stable computed CSS
--- selector (empty for general/page-level); quote is the optional selected text
--- snippet. status = open | in-progress | done; done records resolved_at. The
--- page file itself is never touched — comments live here.
 CREATE TABLE comments (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     page_id     INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
@@ -25,15 +20,13 @@ CREATE TABLE comments (
 CREATE INDEX idx_comments_page ON comments(page_id);
 CREATE INDEX idx_comments_status ON comments(status);
 
--- Changes: a record of an agent edit that addresses feedback. change_id matches
--- a data-cf-change marker the agent embeds in the page HTML, so the what-changed
--- walkthrough (HARB-12) can map an edit back to the comment it resolves.
--- comment_id is nullable: a change may carry no comment (general tidying).
 CREATE TABLE changes (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     page_id     INTEGER NOT NULL REFERENCES pages(id) ON DELETE CASCADE,
     comment_id  INTEGER REFERENCES comments(id) ON DELETE SET NULL,
     change_id   TEXT NOT NULL,
+    title       TEXT NOT NULL DEFAULT '',
+    description TEXT NOT NULL DEFAULT '',
     created_at  TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

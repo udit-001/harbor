@@ -6,7 +6,7 @@ import (
 )
 
 // Pages domain. Pages are the atomic artifact in harbor — workspace-scoped
-// (unlike scraps, which are global and sealed). The page store lives on the
+// standalone HTML pages. The page store lives on the
 // Store seam directly; workspace-scoped helpers are not required because a
 // page already carries workspace_id.
 
@@ -27,7 +27,7 @@ func scanPages(rows RowScanner) ([]Page, error) {
 
 // normalizePageStatus coerces an optional status to a valid value: empty
 // becomes draft; anything else must be a real status or it errors. Mirrors the
-// "exactly N states" invariant of scraps.
+// exactly N states" invariant.
 func normalizePageStatus(status string) (string, error) {
 	switch status {
 	case "":
@@ -51,8 +51,8 @@ type PageFilter struct {
 
 // CreatePage creates a new page. The workspace and status are validated; title
 // is required and drives the stable slug (derived once via Slugify). The listed
-// tag names are attached; each must already exist as a Tag (create-first rule,
-// mirroring scraps). Returns the created page by slug.
+// tag names are attached; each must already exist as a Tag (create-first rule).
+// Returns the created page by slug.
 func (s *Store) CreatePage(workspaceID int64, title, description, context, status, originPath, bodyText string, tagNames []string) (Page, error) {
 	slug := Slugify(title)
 	if slug == "" {

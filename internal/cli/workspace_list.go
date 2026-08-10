@@ -56,13 +56,13 @@ Examples:
 			}
 			rows = append(rows, []string{
 				fmt.Sprintf("%s %s", marker, w.Name),
-				truncate(w.Topic, 30),
-				formatDateShort(w.LastStudied),
+				truncate(w.Topic, 40),
+				formatDateShort(w.CreatedAt),
 			})
 		}
 
 		fmt.Println(formatTable(
-			[]string{"Name", "Topic", "Last Studied"},
+			[]string{"Name", "Topic", "Created"},
 			rows,
 		))
 		fmt.Println()

@@ -185,8 +185,8 @@ func handleStats(store *db.Store) http.HandlerFunc {
 	}
 }
 
-// handleSearch performs full-text search over the global scratchpad (scraps
-// and their tag descriptions). Returns flat results.
+// handleSearch performs full-text search over the page library (title,
+// description, context, body, tag names/descriptions). Returns flat results.
 func handleSearch(store *db.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		q := r.URL.Query().Get("q")
@@ -195,19 +195,24 @@ func handleSearch(store *db.Store) http.HandlerFunc {
 			return
 		}
 
-		scraps, _ := store.SearchScraps(q, "")
+		pages, err := store.SearchPages(q, db.PageFilter{})
+		if err != nil {
+			jsonError(w, "search failed", http.StatusInternalServerError)
+			return
+		}
 		type apiResult struct {
 			Type    string `json:"type"`
 			Title   string `json:"title"`
 			URL     string `json:"url"`
 			Snippet string `json:"snippet,omitempty"`
 		}
-		results := make([]apiResult, 0, len(scraps))
-		for _, s := range scraps {
+		results := make([]apiResult, 0, len(pages))
+		for _, p := range pages {
 			results = append(results, apiResult{
-				Type:    "scrap",
-				Title:   s.Title,
-				Snippet: truncateSnippet(s.Body, 200),
+				Type:    "page",
+				Title:   p.Title,
+				URL:     "/page/" + p.Slug,
+				Snippet: truncateSnippet(p.Description, 200),
 			})
 		}
 		jsonResponse(w, results)
