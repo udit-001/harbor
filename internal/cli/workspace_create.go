@@ -48,9 +48,11 @@ Examples:
 			topic = displayName
 		}
 
+		description, _ := cmd.Flags().GetString("description")
+
 		// CreateWorkspace owns the full row ⇔ dir tree invariant: subdirs,
 		// seed templates, and the DB row. The CLI only decides the path.
-		created, err := s.CreateWorkspace(slug, topic, wsPath)
+		created, err := s.CreateWorkspace(slug, topic, description, wsPath)
 		if err != nil {
 			return formatError("failed to create workspace", err)
 		}
@@ -66,8 +68,8 @@ Examples:
 		fmt.Println()
 		fmt.Println("  Next steps:")
 		fmt.Println("    cd " + wsPath)
-		fmt.Println("    harbor lesson create \"Your first lesson\" --body-file <path>")
-		fmt.Println("    harbor record create \"What you learned\" --body-file <path>")
+		fmt.Println("    harbor page add <your.html> --workspace " + slug + " --description \"what it shows\"")
+		fmt.Println("    harbor tag create <name> --description \"why it exists\"")
 		fmt.Println()
 
 		return nil
@@ -78,4 +80,5 @@ func init() {
 	workspaceCmd.AddCommand(workspaceCreateCmd)
 	workspaceCreateCmd.Flags().String("dir", "", "Create workspace at a custom path")
 	workspaceCreateCmd.Flags().String("topic", "", "Friendly display title for the workspace (default: the name you passed)")
+	workspaceCreateCmd.Flags().String("description", "", "Semantic description of this body of work (powers disambiguation and search)")
 }

@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 )
 
-const wsColumns = `id, name, topic, path, created_at, last_studied`
+const wsColumns = `id, name, topic, description, path, created_at, last_studied`
 
 func scanWorkspace(row interface{ Scan(...any) error }) (Workspace, error) {
 	var w Workspace
-	err := row.Scan(&w.ID, &w.Name, &w.Topic, &w.Path, &w.CreatedAt, &w.LastStudied)
+	err := row.Scan(&w.ID, &w.Name, &w.Topic, &w.Description, &w.Path, &w.CreatedAt, &w.LastStudied)
 	return w, err
 }
 
@@ -47,9 +47,9 @@ func (s *Store) GetWorkspaceByName(name string) (Workspace, error) {
 func (s *Store) AddWorkspace(w Workspace) (Workspace, error) {
 	now := nowTimestamp()
 	result, err := s.db.Exec(
-		`INSERT INTO workspaces (name, topic, path, created_at, last_studied)
-		 VALUES (?, ?, ?, ?, ?)`,
-		w.Name, w.Topic, w.Path, now, now,
+		`INSERT INTO workspaces (name, topic, description, path, created_at, last_studied)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		w.Name, w.Topic, w.Description, w.Path, now, now,
 	)
 	if err != nil {
 		return Workspace{}, fmt.Errorf("add workspace: %w", err)
@@ -66,7 +66,7 @@ func (s *Store) AddWorkspace(w Workspace) (Workspace, error) {
 // NOTES templates), and inserts the row. The "row ⇔ dir tree" invariant lives
 // here — a created workspace always has both. wsPath is supplied by the caller
 // (the CLI knows the data dir / --dir override); the store owns the scaffold.
-func (s *Store) CreateWorkspace(name, topic, wsPath string) (Workspace, error) {
+func (s *Store) CreateWorkspace(name, topic, description, wsPath string) (Workspace, error) {
 	layout := NewLayout(wsPath)
 
 	for _, sub := range layout.Subdirs() {
@@ -83,7 +83,7 @@ func (s *Store) CreateWorkspace(name, topic, wsPath string) (Workspace, error) {
 		return Workspace{}, fmt.Errorf("seed workspace: %w", err)
 	}
 
-	w := Workspace{Name: name, Topic: topic, Path: wsPath}
+	w := Workspace{Name: name, Topic: topic, Description: description, Path: wsPath}
 	created, err := s.AddWorkspace(w)
 	if err != nil {
 		// Roll back the directory scaffold on DB failure so a retry
