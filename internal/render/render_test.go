@@ -42,6 +42,21 @@ func TestPageViewFeedbackBadge(t *testing.T) {
 	}
 }
 
+func TestPageViewChangeTour(t *testing.T) {
+	out := PageView(PageViewData{Slug: "x", Title: "X", RawURL: "/page/x/raw", BackURL: "/"})
+	for _, want := range []string{
+		`id="cfBtn"`, `id="cfCard"`, `id="cfStep"`, `id="cfTitle"`, `id="cfDesc"`,
+		`id="cfPrev"`, `id="cfNext"`, `id="cfDone"`,
+		`/api/pages/`,            // the tour fetches the page's changes JSON
+		"data-cf-change=",        // it locates markers read back from the iframe DOM
+		`prefers-reduced-motion`, // honors reduced motion
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("page view change tour missing %q", want)
+		}
+	}
+}
+
 // TestDashboardRendersStatsAndWorkspaces proves the render module's output is
 // a pure function of its view model — the seam created in LEARN-10.
 func TestDashboardRendersStatsAndWorkspaces(t *testing.T) {

@@ -108,11 +108,13 @@ type CommentView struct {
 // walkthrough can map an edit back to the comment it resolves. CommentID is
 // nullable: a change may carry no comment (general tidying).
 type Change struct {
-	ID        int64  `db:"id" json:"id"`
-	PageID    int64  `db:"page_id" json:"pageId"`
-	CommentID *int64 `db:"comment_id" json:"commentId"`
-	ChangeID  string `db:"change_id" json:"changeId"`
-	CreatedAt string `db:"created_at" json:"createdAt"`
+	ID          int64  `db:"id" json:"id"`
+	PageID      int64  `db:"page_id" json:"pageId"`
+	CommentID   *int64 `db:"comment_id" json:"commentId"`
+	ChangeID    string `db:"change_id" json:"changeId"`
+	Title       string `db:"title" json:"title"`
+	Description string `db:"description" json:"description"`
+	CreatedAt   string `db:"created_at" json:"createdAt"`
 }
 
 // Settings holds user preferences.

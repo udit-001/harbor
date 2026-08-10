@@ -161,12 +161,15 @@ func TestCommentChangeRecord(t *testing.T) {
 	}
 
 	// Record a change addressing that comment.
-	ch, err := s.CreateChange(slug, "cf-7", c.ID)
+	ch, err := s.CreateChange(slug, "cf-7", c.ID, "Tighten hero spacing", "reduced the gap between the headline and the call-to-action")
 	if err != nil {
 		t.Fatalf("create change: %v", err)
 	}
 	if ch.ChangeID != "cf-7" || ch.CommentID == nil || *ch.CommentID != c.ID {
 		t.Fatalf("change = %+v, want change_id=cf-7 comment=%d", ch, c.ID)
+	}
+	if ch.Title != "Tighten hero spacing" || ch.Description != "reduced the gap between the headline and the call-to-action" {
+		t.Fatalf("change title/description = %q / %q", ch.Title, ch.Description)
 	}
 
 	byComment, err := s.ListChanges(slug, c.ID)
@@ -179,7 +182,7 @@ func TestCommentChangeRecord(t *testing.T) {
 	}
 
 	// A change may carry no comment (general tidying).
-	if _, err := s.CreateChange(slug, "cf-8", 0); err != nil {
+	if _, err := s.CreateChange(slug, "cf-8", 0, "", ""); err != nil {
 		t.Fatalf("create standalone change: %v", err)
 	}
 	if all, _ := s.ListChanges(slug, 0); len(all) != 2 {
@@ -192,7 +195,7 @@ func TestCommentChangeRecord(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create comment on other: %v", err)
 	}
-	if _, err := s.CreateChange(slug, "cf-9", oc.ID); err == nil {
+	if _, err := s.CreateChange(slug, "cf-9", oc.ID, "", ""); err == nil {
 		t.Fatalf("expected error referencing comment from another page")
 	}
 }

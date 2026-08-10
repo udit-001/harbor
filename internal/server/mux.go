@@ -98,6 +98,7 @@ func NewMux(store *db.Store, dataDir string, devCSS bool) *http.ServeMux {
 	mux.HandleFunc("GET /api/pages", jsonHandler(handlePagesJSON(store)))
 	mux.HandleFunc("GET /api/pages/{slug}/comments", jsonHandler(handleListPageComments(store)))
 	mux.HandleFunc("POST /api/pages/{slug}/comments", jsonHandler(handleCreatePageComment(store)))
+	mux.HandleFunc("GET /api/pages/{slug}/changes", jsonHandler(handleListPageChanges(store)))
 
 	// App pages
 	mux.HandleFunc("GET /", handleAppShell(store))
@@ -280,6 +281,28 @@ func handleListPageComments(store *db.Store) http.HandlerFunc {
 			comments = []db.CommentView{}
 		}
 		jsonResponse(w, comments)
+	}
+}
+
+// handleListPageChanges serves the changes recorded for a page — what the
+// what-changed walkthrough tours. The shell fetches this to know which
+// data-cf-change markers exist and their title/description.
+func handleListPageChanges(store *db.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		slug := r.PathValue("slug")
+		if _, err := store.PageBySlug(slug); err != nil {
+			jsonError(w, "page not found", http.StatusNotFound)
+			return
+		}
+		changes, err := store.ListChanges(slug, 0)
+		if err != nil {
+			jsonError(w, "failed to load changes", http.StatusInternalServerError)
+			return
+		}
+		if changes == nil {
+			changes = []db.Change{}
+		}
+		jsonResponse(w, changes)
 	}
 }
 

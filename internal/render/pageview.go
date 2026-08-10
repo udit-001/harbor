@@ -37,8 +37,10 @@ func PageView(d PageViewData) string {
 	b.WriteString(pageViewHeader(d))
 	b.WriteString(`<div class="wrap"><iframe id="frame" src="` + e(d.RawURL) + `" title="` + esc(d.Title) + `"></iframe></div>`)
 	b.WriteString(commentPanelMarkup())
+	b.WriteString(changeTourMarkup())
 	b.WriteString(pageViewScript(d))
 	b.WriteString(commentPanelScript(d.Slug))
+	b.WriteString(changeTourScript(d.Slug))
 	if d.Workspace != "" {
 		// Live-sync: reload this page's iframe (preserving scroll) when its
 		// content changes, and follow agent-driven navigation.
@@ -194,6 +196,104 @@ func iconClose() string {
 }
 func iconClear() string {
 	return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>`
+}
+
+// changeTourMarkup is the floating "what changed" walkthrough affordance: a
+// chip shown only when the page records changes AND at least one has a matching
+// data-cf-change marker in the DOM, plus a stepper card that tours each change.
+// It lives entirely in the shell — the marker is read back from the agent's
+// page, never injected into it.
+func changeTourMarkup() string {
+	return `<div class="cf">
+  <button type="button" class="cf-btn" id="cfBtn" hidden aria-label="What changed" title="What changed"><i></i>What changed</button>
+  <div class="cf-card" id="cfCard" role="dialog" aria-label="What changed" aria-hidden="true" hidden>
+    <div class="cf-head"><span class="cf-step" id="cfStep"></span><button type="button" class="icon-btn cf-close" id="cfClose" aria-label="Close what-changed" title="Close">` + iconClose() + `</button></div>
+    <div class="cf-title" id="cfTitle"></div>
+    <div class="cf-desc" id="cfDesc"></div>
+    <div class="cf-actions">
+      <button type="button" class="cf-pill" id="cfPrev">Prev</button>
+      <button type="button" class="cf-pill" id="cfNext">Next</button>
+      <button type="button" class="cf-pill cf-primary" id="cfDone">Done</button>
+    </div>
+  </div>
+</div>`
+}
+
+// changeTourScript wires the what-changed walkthrough. It fetches the page's
+// `changes`, locates each data-cf-change marker in the same-origin iframe DOM,
+// and—only if at least one marker resolves—shows a "What changed" chip. Clicking
+// it opens a stepper that scrolls to + highlights each change in sequence with
+// its title/description. Honors reduced motion and is skipped entirely (no tour,
+// no error) when the page has no changes or no matching markers.
+func changeTourScript(slug string) string {
+	slugLit, _ := json.Marshal(slug)
+	return `<script>
+(function(){
+  const slug=` + string(slugLit) + `;
+  const frame=document.getElementById('frame');
+  const btn=document.getElementById('cfBtn');
+  const card=document.getElementById('cfCard');
+  const stepEl=document.getElementById('cfStep');
+  const titleEl=document.getElementById('cfTitle');
+  const descEl=document.getElementById('cfDesc');
+  const prevBtn=document.getElementById('cfPrev');
+  const nextBtn=document.getElementById('cfNext');
+  const doneBtn=document.getElementById('cfDone');
+  const closeBtn=document.getElementById('cfClose');
+  const LIST_URL='/api/pages/'+encodeURIComponent(slug)+'/changes';
+  const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let all=[], matched=[], idx=-1, iframeReady=false;
+  let hlEl=null, styleTag=null;
+
+  function locate(id){
+    try{ const d=frame.contentDocument; if(!d) return null; return d.querySelector('[data-cf-change="'+String(id).replace(/"/g,'\\"')+'"]'); }
+    catch(_){ return null; }
+  }
+  function injectStyle(){
+    if(styleTag&&styleTag.parentNode) return;
+    try{ const d=frame.contentDocument; if(!d||!d.head) return;
+      const theme=document.documentElement.dataset.theme||'light';
+      const accent=(theme==='dark')?'#88c0d0':'#5e81ac';
+      const tint=(theme==='dark')?'rgba(136,192,208,.22)':'rgba(94,129,172,.15)';
+      styleTag=d.createElement('style'); styleTag.textContent=
+        '.cf-hl{outline:2px solid '+accent+'!important;outline-offset:1px!important;'+
+        'box-shadow:0 0 0 2px '+tint+',inset 0 0 0 600px '+tint+'!important;border-radius:2px}';
+      d.head.appendChild(styleTag);
+    }catch(_){}
+  }
+  function clearHl(){ if(hlEl){ hlEl.classList.remove('cf-hl'); hlEl=null; } }
+  function render(){
+    if(idx<0||idx>=matched.length) return;
+    const s=matched[idx];
+    stepEl.textContent='Change '+(idx+1)+' of '+matched.length;
+    titleEl.textContent=s.change.title||s.change.changeId;
+    descEl.textContent=s.change.description||(s.el?('Marked element: '+s.change.changeId):'');
+    clearHl();
+    if(s.el){
+      injectStyle(); hlEl=s.el; s.el.classList.add('cf-hl');
+      try{ s.el.scrollIntoView(REDUCED?{block:'center'}:{behavior:'smooth',block:'center'}); }catch(_){ try{s.el.scrollIntoView();}catch(_2){} }
+    }
+    prevBtn.disabled=(idx===0);
+    nextBtn.disabled=(idx===matched.length-1);
+  }
+  function go(i){ if(i<0||i>=matched.length) return; idx=i; render(); }
+  function finish(){ clearHl(); card.hidden=true; card.setAttribute('aria-hidden','true'); btn.hidden=false; }
+  function tryReady(){
+    if(!iframeReady||!all.length) return;
+    // Pair each change with its located marker (skip changes with no marker).
+    matched=all.map(function(c){ return {change:c, el:locate(c.changeId)}; }).filter(function(p){ return p.el; });
+    if(matched.length) btn.hidden=false;
+    else { /* changes exist but no markers -> no tour, no error */ }
+  }
+  prevBtn.addEventListener('click',()=>go(idx-1));
+  nextBtn.addEventListener('click',()=>go(idx+1));
+  doneBtn.addEventListener('click',finish);
+  closeBtn.addEventListener('click',finish);
+  btn.addEventListener('click',function(){ btn.hidden=true; card.hidden=false; card.setAttribute('aria-hidden','false'); go(0); document.activeElement&&document.activeElement.blur&&document.activeElement.blur(); });
+  frame.addEventListener('load',function(){ iframeReady=true; if(btn.hidden) tryReady(); });
+  if(frame.contentDocument&&frame.contentDocument.readyState==='complete'){ iframeReady=true; }
+  fetch(LIST_URL).then(r=>r.json()).then(function(list){ all=Array.isArray(list)?list:[]; tryReady(); }).catch(function(){});
+})();</script>`
 }
 
 // commentPanelScript wires the comment panel: open/close with focus management,
@@ -549,8 +649,32 @@ font:600 13px var(--font);cursor:pointer}
 .cp-item-body{font-size:13px;color:var(--text);line-height:1.6}
 .cp-item-quote{font-size:12px;font-style:italic;color:var(--muted);line-height:1.55;border-left:2px solid var(--border);padding:1px 0 1px 9px;margin-top:10px}
 .cp-empty{font-size:12.5px;color:var(--muted)}
-@media(prefers-reduced-motion:reduce){
-.comment-panel{transition:opacity .18s ease;transform:none}
+/* ── What-changed walkthrough ── */
+.cf-btn{position:fixed;left:16px;bottom:16px;z-index:45;display:inline-flex;align-items:center;gap:7px;
+border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:999px;
+padding:8px 14px;font:600 12.5px var(--font);cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.10);
+transition:background .1s,color .1s,border-color .1s}
+.cf-btn:hover{background:var(--surface2);border-color:var(--text)}
+.cf-btn[hidden]{display:none}
+.cf-btn i{width:8px;height:8px;border-radius:999px;background:var(--acc)}
+.cf-card{position:fixed;z-index:46;left:50%;top:64px;transform:translateX(-50%);width:380px;max-width:92vw;
+background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+box-shadow:0 10px 34px rgba(0,0,0,.18);padding:14px 16px}
+.cf-card[hidden]{display:none}
+.cf-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.cf-step{font:600 11px var(--font);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.cf-close{margin-left:auto}
+.cf-title{font-weight:600;color:var(--strong);font-size:14px}
+.cf-desc{color:var(--muted);font-size:12.5px;line-height:1.55;margin-top:3px}
+.cf-actions{display:flex;align-items:center;gap:8px;margin-top:12px}
+.cf-pill{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:var(--rs);
+padding:7px 14px;font:600 12.5px var(--font);cursor:pointer}
+.cf-pill:hover{background:var(--surface2)}
+.cf-pill:disabled{opacity:.4;cursor:not-allowed}
+.cf-pill.cf-primary{background:var(--acc);border-color:var(--acc);color:#fff}
+.cf-pill.cf-primary:hover{filter:brightness(.96)}
+@media(prefers-reduced-motion:reduce){.cf-btn,.cf-card{transition:none}}
+@media(prefers-reduced-motion:reduce){.comment-panel{transition:opacity .18s ease;transform:none}
 .comment-panel.open{transform:none}
 }
 @media(max-width:680px){.comment-panel{width:100%;max-width:100vw}}

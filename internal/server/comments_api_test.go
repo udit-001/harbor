@@ -76,6 +76,37 @@ func TestCommentsAPIEmptyThenCreate(t *testing.T) {
 	}
 }
 
+func TestChangesAPI(t *testing.T) {
+	env := newTestEnv(t)
+	slug := seedCommentPage(t, env)
+	target := "/api/pages/" + slug + "/changes"
+
+	// Empty before any change is recorded.
+	var empty []db.Change
+	json.Unmarshal(env.get(t, target).Body.Bytes(), &empty)
+	if len(empty) != 0 {
+		t.Fatalf("expected empty changes, got %d", len(empty))
+	}
+
+	// Record a change via the store; the endpoint reports it with title/description.
+	if _, err := env.store.CreateChange(slug, "cf-1", 0, "Widen hero", "expanded the hero to full width"); err != nil {
+		t.Fatalf("create change: %v", err)
+	}
+	var list []db.Change
+	json.Unmarshal(env.get(t, target).Body.Bytes(), &list)
+	if len(list) != 1 {
+		t.Fatalf("changes = %d, want 1", len(list))
+	}
+	if list[0].ChangeID != "cf-1" || list[0].Title != "Widen hero" || list[0].Description != "expanded the hero to full width" {
+		t.Fatalf("change = %+v", list[0])
+	}
+
+	// Missing page → 404.
+	if env.get(t, "/api/pages/nope/changes").Code != http.StatusNotFound {
+		t.Fatal("changes for missing page should 404")
+	}
+}
+
 func TestOpenFeedbackIndicator(t *testing.T) {
 	env := newTestEnv(t)
 	slug := seedCommentPage(t, env) // "revenue-deep-dive"

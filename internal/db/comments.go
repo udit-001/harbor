@@ -46,12 +46,12 @@ func scanCommentViews(rows RowScanner) ([]CommentView, error) {
 	return scanRows(rows, "comment", scanCommentView)
 }
 
-const changeColumns = `id, page_id, COALESCE(comment_id, 0), change_id, created_at`
+const changeColumns = `id, page_id, COALESCE(comment_id, 0), change_id, title, description, created_at`
 
 func scanChange(row interface{ Scan(...any) error }) (Change, error) {
 	var ch Change
 	var commentID int64
-	err := row.Scan(&ch.ID, &ch.PageID, &commentID, &ch.ChangeID, &ch.CreatedAt)
+	err := row.Scan(&ch.ID, &ch.PageID, &commentID, &ch.ChangeID, &ch.Title, &ch.Description, &ch.CreatedAt)
 	if commentID != 0 {
 		ch.CommentID = &commentID
 	}
@@ -230,7 +230,7 @@ func (s *Store) CloseComment(id int64) (CommentView, error) {
 
 // CreateChange records an agent edit tied to a page and, optionally, a comment.
 // ChangeID matches a data-cf-change marker embedded in the page HTML.
-func (s *Store) CreateChange(pageSlug, changeID string, commentID int64) (Change, error) {
+func (s *Store) CreateChange(pageSlug, changeID string, commentID int64, title, description string) (Change, error) {
 	page, err := s.PageBySlug(pageSlug)
 	if err != nil {
 		return Change{}, fmt.Errorf("change: %w", err)
@@ -252,9 +252,9 @@ func (s *Store) CreateChange(pageSlug, changeID string, commentID int64) (Change
 	}
 
 	res, err := s.db.Exec(
-		`INSERT INTO changes (page_id, comment_id, change_id, created_at)
-		 VALUES (?, ?, ?, ?)`,
-		page.ID, commentRef, changeID, nowTimestamp(),
+		`INSERT INTO changes (page_id, comment_id, change_id, title, description, created_at)
+		 VALUES (?, ?, ?, ?, ?, ?)`,
+		page.ID, commentRef, changeID, title, description, nowTimestamp(),
 	)
 	if err != nil {
 		return Change{}, fmt.Errorf("insert change: %w", err)
