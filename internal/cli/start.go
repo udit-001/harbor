@@ -28,6 +28,10 @@ func startDaemon(port int) (*exec.Cmd, error) {
 	c.Stdin = nil
 	c.Stdout = nil
 	c.Stderr = nil
+	// Propagate the resolved data dir to the daemon child explicitly, so it
+	// opens the same database the invoking CLI used — resilient to HOME/XDG
+	// differences between the parent shell and the re-exec'd child.
+	c.Env = append(os.Environ(), "HARBOR_DATA_DIR="+resolveDataDir())
 	detachDaemon(c)
 	if err := c.Start(); err != nil {
 		return nil, err

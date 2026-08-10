@@ -14,7 +14,14 @@ import (
 	"github.com/udit-001/harbor/internal/version"
 )
 
+// resolveDataDir returns the data directory. An explicit HARBOR_DATA_DIR env
+// override wins (used to propagate the resolved dir from `harbor start` to its
+// daemon child, so both open the same database regardless of HOME/XDG), then
+// the config file's data_dir, then the default.
 func resolveDataDir() string {
+	if d := os.Getenv("HARBOR_DATA_DIR"); d != "" {
+		return d
+	}
 	cfg, err := config.Load()
 	if err != nil {
 		return config.DefaultDataDir()
