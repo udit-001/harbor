@@ -1,6 +1,6 @@
 ---
 name: harbor
-description: Use harbor when a human asks you to save, organize, find, or review HTML pages an agent builds — keep a standalone HTML artifact for a human to view (harbor page add), group pages into or pull them out of a workspace (harbor workspace), tag pages (harbor tag), search the library (harbor search, page list/read), or run the dashboard (harbor start / stop).
+description: Use harbor when you build a standalone HTML page a human will want to see or keep — register it (harbor page add), group it into a workspace (harbor workspace), or tag it (harbor tag); also when a human asks you to save, organize, find, or review pages (harbor search, page list/read), or to run the dashboard (harbor start / stop).
 ---
 
 # Harbor
@@ -43,6 +43,9 @@ library.
 
 ## Deterministic behaviors
 
+- **Import keep-worthy pages by default.** When you produce a standalone HTML
+  page a human will want to see, add it to the library without waiting to be
+  asked — the "worth keeping" test is the gate, not an explicit instruction.
 - `harbor page add` **fails fast** if the workspace doesn't exist — the error
   prints the exact `harbor workspace create` command. Run that command yourself;
   the import won't auto-create the workspace behind your back.
