@@ -367,6 +367,9 @@ func commentPanelScript(slug string) string {
   }
   frame.addEventListener('load',wire);
   wire();
+  // When the cursor leaves the page (into the panel, header, or beyond) stop
+  // the candidate highlight — the pointer is no longer over a pickable element.
+  frame.addEventListener('mouseleave',clearHover);
 
   // Submit the pending comment.
   form.addEventListener('submit',(e)=>{
