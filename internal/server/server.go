@@ -17,11 +17,12 @@ import (
 
 // Config holds the server's startup configuration.
 type Config struct {
-	Port   int
-	DB     *db.Store
-	NoOpen bool
-	Silent bool
-	DevCSS bool // serve CSS from disk (no embed, no-cache) for `harbor dev`
+	Port    int
+	DB      *db.Store
+	DataDir string // root of the managed store: <dataDir>/store/<workspace>/<slug>.html
+	NoOpen  bool
+	Silent  bool
+	DevCSS  bool // serve CSS from disk (no embed, no-cache) for `harbor dev`
 }
 
 // Start boots the dashboard server: builds the mux via NewMux, binds the
@@ -36,7 +37,7 @@ type Config struct {
 // The mux is a separate seam (NewMux) so tests can drive routes through
 // httptest without booting a real listener.
 func Start(cfg Config) error {
-	mux := NewMux(cfg.DB, cfg.DevCSS)
+	mux := NewMux(cfg.DB, cfg.DataDir, cfg.DevCSS)
 
 	addr := fmt.Sprintf("127.0.0.1:%d", cfg.Port)
 	listener, err := net.Listen("tcp", addr)

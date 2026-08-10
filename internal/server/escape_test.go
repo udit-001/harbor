@@ -33,7 +33,7 @@ func TestWorkspaceNamePathUnsafe(t *testing.T) {
 			os.MkdirAll(wsDir, 0755)
 			store.AddWorkspace(db.Workspace{Name: name, Topic: name, Path: wsDir})
 
-			mux := NewMux(store, false)
+			mux := NewMux(store, "", false)
 			urlStr := urls.Workspace(name)
 			t.Logf("name=%q  url=%q", name, urlStr)
 

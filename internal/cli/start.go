@@ -122,11 +122,12 @@ Examples:
 		_ = os.WriteFile(pidPath, []byte(fmt.Sprintf(`{"port":%d,"pid":%d}`, port, os.Getpid())), 0o644)
 
 		return server.Start(server.Config{
-			Port:   port,
-			DB:     s,
-			NoOpen: startFlags.noOpen,
-			Silent: startFlags.daemon,
-			DevCSS: startFlags.devCSS,
+			Port:    port,
+			DB:      s,
+			DataDir: resolveDataDir(),
+			NoOpen:  startFlags.noOpen,
+			Silent:  startFlags.daemon,
+			DevCSS:  startFlags.devCSS,
 		})
 	},
 }

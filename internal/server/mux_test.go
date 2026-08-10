@@ -17,9 +17,10 @@ import (
 // SQLite temp file (matching db test pattern). Workspace files are written
 // to a real temp dir so handlers that read from disk work correctly.
 type testEnv struct {
-	store *db.Store
-	mux   *http.ServeMux
-	wsDir string
+	store   *db.Store
+	mux     *http.ServeMux
+	wsDir   string
+	dataDir string
 }
 
 func newTestEnv(t *testing.T) *testEnv {
@@ -40,7 +41,8 @@ func newTestEnv(t *testing.T) *testEnv {
 	os.WriteFile(filepath.Join(wsDir, "RESOURCES.md"), []byte("{some placeholder}"), 0644)
 	os.WriteFile(filepath.Join(wsDir, "NOTES.md"), []byte("# Notes\n\nReal notes"), 0644)
 
-	return &testEnv{store: store, mux: NewMux(store, false), wsDir: wsDir}
+	dataDir := filepath.Join(dir, "store")
+	return &testEnv{store: store, mux: NewMux(store, dataDir, false), wsDir: wsDir, dataDir: dataDir}
 }
 
 func (e *testEnv) get(t *testing.T, target string) *httptest.ResponseRecorder {
@@ -206,6 +208,45 @@ func TestLibraryListsSeededPages(t *testing.T) {
 	fragEmpty := env.get(t, "/api/pages?q=zzzqqq").Body.String()
 	if !strings.Contains(fragEmpty, "No pages yet") {
 		t.Errorf("empty fragment missing empty state: %s", fragEmpty)
+	}
+}
+
+func TestPageViewAndRaw(t *testing.T) {
+	env := newTestEnv(t)
+	wsID := env.workspaceID(t)
+
+	const html = `<!doctype html><html><head><title>deep</title></head><body><h1>Revenue Deep Dive</h1><p>raw hero</p></body></html>`
+	if _, err := env.store.CreatePage(wsID, "Revenue Deep Dive", "quarterly", "board", "", "", "raw hero", nil); err != nil {
+		t.Fatalf("create page: %v", err)
+	}
+	// Managed file byte-for-byte (no injection/restyle): the server serves it as-is.
+	dir := filepath.Join(env.dataDir, "store", "alpha")
+	os.MkdirAll(dir, 0755)
+	os.WriteFile(filepath.Join(dir, "revenue-deep-dive.html"), []byte(html), 0644)
+
+	// Raw serves the exact bytes.
+	raw := env.get(t, "/page/revenue-deep-dive/raw")
+	if raw.Code != 200 {
+		t.Fatalf("raw status = %d, want 200", raw.Code)
+	}
+	if got := raw.Body.String(); got != html {
+		t.Errorf("raw body not byte-for-byte:\n%q", got)
+	}
+
+	// Page view renders the header + iframe onto the raw URL, title intact.
+	view := env.get(t, "/page/revenue-deep-dive").Body.String()
+	for _, want := range []string{`src="/page/revenue-deep-dive/raw"`, "Revenue Deep Dive", `data-slug="revenue-deep-dive"`, "Pop out", "alpha"} {
+		if !strings.Contains(view, want) {
+			t.Errorf("page view missing %q", want)
+		}
+	}
+
+	// Missing page/raw → 404.
+	if env.get(t, "/page/nope/raw").Code != 404 {
+		t.Error("missing raw page should 404")
+	}
+	if env.get(t, "/page/nope").Code != 404 {
+		t.Error("missing page view should 404")
 	}
 }
 

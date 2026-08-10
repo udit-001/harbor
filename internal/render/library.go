@@ -14,6 +14,9 @@ type LibraryData struct {
 	Filter     LibraryFilter
 	Pages      []PageRow
 	Total      int
+	// HrefQuery is the "?status=…&workspace=…&tag=…&q=…" suffix appended to page
+	// row links so the page view's prev/next stays scoped to the current set.
+	HrefQuery string
 }
 
 // LibrarySection is one sidebar entry with its page count.
@@ -136,7 +139,7 @@ func libraryContent(data LibraryData) string {
 	if data.Total == 0 {
 		b.WriteString(libraryEmpty())
 	} else {
-		b.WriteString(libraryRows(data.Pages))
+		b.WriteString(libraryRows(data.Pages, data.HrefQuery))
 	}
 	b.WriteString(`</div></div>`)
 	return b.String()
@@ -172,13 +175,13 @@ const (
 	arch  = "archived"
 )
 
-func libraryRows(rows []PageRow) string {
+func libraryRows(rows []PageRow, hrefQuery string) string {
 	var b strings.Builder
 	if len(rows) == 0 {
 		return libraryEmpty()
 	}
 	for _, r := range rows {
-		b.WriteString(`<a class="row" href="/page/` + e(r.Slug) + `">`)
+		b.WriteString(`<a class="row" href="/page/` + e(r.Slug) + hrefQuery + `">`)
 		b.WriteString(`<div class="grow">`)
 		b.WriteString(`<div class="t"><span class="name">` + esc(r.Title) + `</span>`)
 		if r.FeedbackOpen > 0 {
@@ -213,7 +216,7 @@ func statusClass(s string) string {
 
 // LibraryRows returns just the list fragment (rows or empty state). Used by the
 // live-search endpoint so the client can swap the list without reloading.
-func LibraryRows(rows []PageRow) string { return libraryRows(rows) }
+func LibraryRows(rows []PageRow, hrefQuery string) string { return libraryRows(rows, hrefQuery) }
 
 func libraryEmpty() string {
 	return `<div class="empty"><h2>No pages yet</h2>

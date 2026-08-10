@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -21,7 +23,7 @@ import (
 // and drive routes through httptest.NewRecorder without booting a real server.
 //
 // devCSS serves CSS from disk (no embed, no-cache) for `harbor dev`.
-func NewMux(store *db.Store, devCSS bool) *http.ServeMux {
+func NewMux(store *db.Store, dataDir string, devCSS bool) *http.ServeMux {
 	mux := http.NewServeMux()
 	broker := NewBroker()
 
@@ -99,6 +101,8 @@ func NewMux(store *db.Store, devCSS bool) *http.ServeMux {
 
 	// App pages
 	mux.HandleFunc("GET /", handleAppShell(store))
+	mux.HandleFunc("GET /page/{slug}", handlePageView(store, dataDir))
+	mux.HandleFunc("GET /page/{slug}/raw", handlePageRaw(store, dataDir))
 	mux.HandleFunc("GET /workspace/{name}", handleWorkspacePage(store))
 	mux.HandleFunc("GET /workspace/{name}/resources", handleDocPage(store, "resources"))
 	mux.HandleFunc("GET /workspace/{name}/notes", handleDocPage(store, "notes"))
@@ -250,9 +254,11 @@ func handleAppShell(store *db.Store) http.HandlerFunc {
 // the live-search box: ?q=… plus the current status/workspace/tag narrowings.
 func handleListFragment(store *db.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		rows := libraryRows(store, pageFilterFromQuery(r), r.URL.Query().Get("q"))
+		filter := pageFilterFromQuery(r)
+		q := r.URL.Query().Get("q")
+		rows := libraryRows(store, filter, q)
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		_, _ = w.Write([]byte(render.LibraryRows(rows)))
+		_, _ = w.Write([]byte(render.LibraryRows(rows, filterQueryString(filter, q))))
 	}
 }
 
@@ -330,7 +336,122 @@ func buildLibraryData(store *db.Store, r *http.Request) render.LibraryData {
 
 	data.Pages = libraryRows(store, filter, q)
 	data.Total = len(data.Pages)
+	data.HrefQuery = filterQueryString(filter, q)
 	return data
+}
+
+// filterQueryString builds the "?status=…&workspace=…&tag=…&q=…" suffix that
+// carries the current set across a page-link navigation.
+func filterQueryString(filter db.PageFilter, q string) string {
+	var parts []string
+	add := func(k, v string) {
+		if v != "" {
+			parts = append(parts, k+"="+url.QueryEscape(v))
+		}
+	}
+	add("status", filter.Status)
+	add("workspace", filter.WorkspaceSlug)
+	add("tag", filter.TagName)
+	add("q", q)
+	if len(parts) == 0 {
+		return ""
+	}
+	return "?" + strings.Join(parts, "&")
+}
+
+// managedPagePath resolves the managed HTML file for a page under the given
+// data dir. Workspace names and slugs are slugified/stable, so the path is
+// deterministic and safe.
+func managedPagePath(dataDir, workspaceName, slug string) string {
+	return filepath.Join(dataDir, "store", workspaceName, slug+".html")
+}
+
+// handlePageRaw serves a page's HTML byte-for-byte, as the agent wrote it. This
+// is both the iframe src and the pop-out target — no restyle, no injection, no
+// theme toggle. 404 when the page or its managed file is missing.
+func handlePageRaw(store *db.Store, dataDir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		page, err := store.PageBySlug(r.PathValue("slug"))
+		if err != nil {
+			writeRawNotFound(w)
+			return
+		}
+		wsName := ""
+		if ws, werr := store.GetWorkspace(page.WorkspaceID); werr == nil {
+			wsName = ws.Name
+		}
+		data, err := os.ReadFile(managedPagePath(dataDir, wsName, page.Slug))
+		if err != nil {
+			writeRawNotFound(w)
+			return
+		}
+		ct := http.DetectContentType(data)
+		if !strings.HasPrefix(ct, "text/html") {
+			ct = "text/html; charset=utf-8"
+		}
+		w.Header().Set("Content-Type", ct)
+		_, _ = w.Write(data)
+	}
+}
+
+func writeRawNotFound(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+	w.WriteHeader(http.StatusNotFound)
+	_, _ = w.Write([]byte("page not found"))
+}
+
+// handlePageView serves the page view (consume surface): one shared header for
+// container ⇄ full modes, an iframe onto /page/{slug}/raw. prev/next are scoped
+// to the current Library set (the filter query params).
+func handlePageView(store *db.Store, dataDir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		page, err := store.PageBySlug(r.PathValue("slug"))
+		if err != nil {
+			writeRawNotFound(w)
+			return
+		}
+
+		filter := pageFilterFromQuery(r)
+		q := r.URL.Query().Get("q")
+		set := libraryRows(store, filter, q) // ordered current set
+		prevURL, nextURL := "", ""
+		for i, row := range set {
+			if row.Slug == page.Slug {
+				if i > 0 {
+					prevURL = "/page/" + set[i-1].Slug + filterQueryString(filter, q)
+				}
+				if i < len(set)-1 {
+					nextURL = "/page/" + set[i+1].Slug + filterQueryString(filter, q)
+				}
+				break
+			}
+		}
+
+		wsName := ""
+		if ws, werr := store.GetWorkspace(page.WorkspaceID); werr == nil {
+			wsName = ws.Name
+		}
+		tags := []string{}
+		if ts, terr := store.TagsForPage(page.Slug); terr == nil {
+			for _, t := range ts {
+				tags = append(tags, t.Name)
+			}
+		}
+
+		data := render.PageViewData{
+			Slug:      page.Slug,
+			Title:     page.Title,
+			Status:    page.Status,
+			Workspace: wsName,
+			Tags:      tags,
+			RawURL:    "/page/" + page.Slug + "/raw",
+			BackURL:   "/" + filterQueryString(filter, q),
+			PrevURL:   prevURL,
+			NextURL:   nextURL,
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(render.PageView(data)))
+	}
 }
 
 func mustWorkspaces(store *db.Store) []db.Workspace {
