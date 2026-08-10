@@ -241,6 +241,7 @@ func commentPanelScript(slug string) string {
     panel.classList.toggle('open',v);
     panel.setAttribute('aria-hidden',String(!v));
     btn.setAttribute('aria-expanded',String(v));
+    document.body.classList.toggle('commenting',v);
     if(v){ showHeader(); body.focus(); loadList(); }
     else {
       if(document.activeElement&&document.activeElement.closest('#commentPanel')) btn.focus();
@@ -359,7 +360,7 @@ func pageViewCSS() string {
 --text:#4c566a;--muted:#8891a0;--strong:#2e3440;--acc:#5e81ac;--acc-soft:#e0e7ff;
 --ok:#4a7a2e;--ok-soft:#e6f0e6;--warn:#d08770;--warn-soft:#fadfd2;--arch:#8891a0;--arch-soft:#eceff4;
 --font:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
---rs:6px;--ease:cubic-bezier(.23,1,.32,1)}
+--rs:6px;--panelw:340px;--ease:cubic-bezier(.23,1,.32,1)}
 [data-theme="dark"]{
 --bg:#2e3440;--surface:#3b4252;--surface2:#434c5e;--border:#4c566a;--hair:#3b4252;
 --text:#d8dee9;--muted:#81a1c1;--strong:#eceff4;--acc:#88c0d0;--acc-soft:rgba(136,192,208,.18);
@@ -384,8 +385,13 @@ a{text-decoration:none;color:inherit}
 display:grid;place-items:center;transition:color .1s;cursor:pointer}
 .icon-btn:hover{color:var(--strong);background:var(--surface2)}
 .icon-btn:disabled,.icon-btn.disabled{opacity:.35}
-.wrap{height:calc(100vh - 52px);transition:height .35s var(--ease)}
+.wrap{height:calc(100vh - 52px);transition:height .35s var(--ease),margin-right .3s var(--ease)}
 #frame{width:100%;height:100%;border:0;background:#fff;transition:height .35s var(--ease)}
+/* The comment panel docks rather than overlays the page: opening it compresses
+   the content column by the panel width so the page stays fully visible and
+   selectable beside it (no hidden right edge). On narrow screens the panel
+   stays a full-width overlay — there is no room to dock. */
+@media(min-width:681px){body.commenting .wrap{margin-right:var(--panelw)}}
 /* container (default): the page fills the column below the header, edge-to-edge
    and seamless — like a harbor frame page living inside the shell. The header
    stays visible (sticky). */
@@ -405,7 +411,7 @@ body.full .pv.is-visible{transform:translateY(0);opacity:1;pointer-events:auto}
 body.full .pv{transition:opacity .2s ease;transform:none}
 }
 /* ── Comment panel ── */
-.comment-panel{position:fixed;top:0;right:0;bottom:0;width:340px;max-width:92vw;z-index:40;
+.comment-panel{position:fixed;top:0;right:0;bottom:0;width:var(--panelw);max-width:92vw;z-index:40;
 display:flex;flex-direction:column;background:var(--surface);border-left:1px solid var(--border);
 box-shadow:-8px 0 24px rgba(0,0,0,.10);
 transform:translateX(100%);opacity:0;pointer-events:none;
