@@ -101,15 +101,19 @@ func librarySidebar(data LibraryData) string {
 	}
 	addLink(allHref, "All pages", data.Total, allActive, iconList(), `data-all="1"`)
 
-	b.WriteString(`<div class="sec">Workspaces</div>`)
-	for _, w := range data.Workspaces {
-		active := data.Filter.Workspace == w.Name
-		addLink("/?workspace="+e(w.Name)+"&status="+e(data.Filter.Status), w.Name, w.Count, active, iconFolder(), `data-ws="`+e(w.Name)+`"`)
+	if len(data.Workspaces) > 0 {
+		b.WriteString(`<div class="sec">Workspaces</div>`)
+		for _, w := range data.Workspaces {
+			active := data.Filter.Workspace == w.Name
+			addLink("/?workspace="+e(w.Name)+"&status="+e(data.Filter.Status), w.Name, w.Count, active, iconFolder(), `data-ws="`+e(w.Name)+`"`)
+		}
 	}
-	b.WriteString(`<div class="sec">Tags</div>`)
-	for _, t := range data.Tags {
-		active := data.Filter.Tag == t.Name
-		addLink("/?tag="+e(t.Name)+"&status="+e(data.Filter.Status), t.Name, t.Count, active, iconTag(), `data-tag="`+e(t.Name)+`"`)
+	if len(data.Tags) > 0 {
+		b.WriteString(`<div class="sec">Tags</div>`)
+		for _, t := range data.Tags {
+			active := data.Filter.Tag == t.Name
+			addLink("/?tag="+e(t.Name)+"&status="+e(data.Filter.Status), t.Name, t.Count, active, iconTag(), `data-tag="`+e(t.Name)+`"`)
+		}
 	}
 
 	b.WriteString(`</nav></aside>`)
@@ -219,8 +223,7 @@ func LibraryRows(rows []PageRow, hrefQuery string) string { return libraryRows(r
 
 func libraryEmpty() string {
 	return `<div class="empty"><h2>No pages yet</h2>
-<p>Harbor holds the HTML pages your agent builds. When the agent makes a page worth keeping, it imports it here with one command.</p>
-<code>harbor page add your-page.html --workspace my-work --description "what it shows"</code></div>`
+<p>Harbor gathers the standalone HTML pages your agent builds. When the agent makes one worth keeping, it lands here automatically for you to browse and review — nothing for you to do.</p></div>`
 }
 
 func libraryScript(data LibraryData) string {
@@ -271,7 +274,7 @@ func libraryScript(data LibraryData) string {
   }
   function emptyHTML(noPages){
     return noPages
-      ? '<div class="empty"><h2>No pages yet</h2><p>Harbor holds the HTML pages your agent builds. When the agent makes a page worth keeping, it imports it here with one command.</p><code>harbor page add your-page.html --workspace my-work --description "what it shows"</code></div>'
+      ? '<div class="empty"><h2>No pages yet</h2><p>Harbor gathers the standalone HTML pages your agent builds. When the agent makes one worth keeping, it lands here automatically for you to browse and review — nothing for you to do.</p></div>'
       : '<div class="empty"><h2>No pages match these filters</h2><p>Try a different status, workspace, tag, or query.</p><button type="button" class="clear" id="clear-filters">Clear all filters</button></div>';
   }
 
