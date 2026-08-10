@@ -83,18 +83,10 @@ func librarySidebar(data LibraryData) string {
 
 	// All pages
 	allActive := data.Filter.Workspace == "" && data.Filter.Tag == ""
-	addLink := func(href, label string, count int, active bool, section bool) {
-		if section {
-			b.WriteString(`<div class="sec">` + esc(label) + `</div>`)
-			return
-		}
+	addLink := func(href, label string, count int, active bool, icon string) {
 		cls := "link"
 		if active {
 			cls += " active"
-		}
-		icon := "▦"
-		if label == "All pages" {
-			icon = "≡"
 		}
 		fmt.Fprintf(&b, `<a class="%s" href="%s"><span class="ic">%s</span>%s<span class="cnt">%d</span></a>`,
 			cls, esc(href), icon, esc(label), count)
@@ -104,17 +96,17 @@ func librarySidebar(data LibraryData) string {
 	if data.Filter.Q != "" {
 		allHref += "&q=" + esc(data.Filter.Q)
 	}
-	addLink(allHref, "All pages", data.Total, allActive, false)
+	addLink(allHref, "All pages", data.Total, allActive, iconList())
 
 	b.WriteString(`<div class="sec">Workspaces</div>`)
 	for _, w := range data.Workspaces {
 		active := data.Filter.Workspace == w.Name
-		addLink("/?workspace="+e(w.Name)+"&status="+e(data.Filter.Status), w.Name, w.Count, active, false)
+		addLink("/?workspace="+e(w.Name)+"&status="+e(data.Filter.Status), w.Name, w.Count, active, iconFolder())
 	}
 	b.WriteString(`<div class="sec">Tags</div>`)
 	for _, t := range data.Tags {
 		active := data.Filter.Tag == t.Name
-		addLink("/?tag="+e(t.Name)+"&status="+e(data.Filter.Status), t.Name, t.Count, active, false)
+		addLink("/?tag="+e(t.Name)+"&status="+e(data.Filter.Status), t.Name, t.Count, active, iconTag())
 	}
 
 	b.WriteString(`</nav></aside>`)
@@ -126,8 +118,9 @@ func libraryTopbar(data LibraryData) string {
 	if data.Filter.Q != "" {
 		searchVal = ` value="` + e(data.Filter.Q) + `"`
 	}
-	return `<div class="topbar"><span class="crumb">Library</span>
-<div class="search"><input id="q" type="search" placeholder="Search pages…" aria-label="Search pages"` + searchVal + `></div></div>`
+	// Home is the root of the shell, so it carries no breadcrumb — the content
+	// heading ("All pages") is the single location label; the topbar is search.
+	return `<div class="topbar"><div class="search"><input id="q" type="search" placeholder="Search pages…" aria-label="Search pages"` + searchVal + `></div></div>`
 }
 
 func libraryContent(data LibraryData) string {

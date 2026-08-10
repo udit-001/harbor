@@ -40,7 +40,12 @@ func PageView(d PageViewData) string {
 func pageViewHeader(d PageViewData) string {
 	var b strings.Builder
 	b.WriteString(`<div class="pv" id="pv">`)
-	b.WriteString(`<a class="icon-btn" href="` + e(d.BackURL) + `" title="Back to library" aria-label="Back to library">` + iconBack() + `</a>`)
+	// Breadcrumb: back to the library (parent), then the page title as the
+	// current crumb — one integrated location region, not chrome + heading in
+	// two separate rows.
+	b.WriteString(`<a class="icon-btn back" href="` + e(d.BackURL) + `" title="Back to library" aria-label="Back to library">` + iconChevronLeft() + `</a>`)
+	b.WriteString(`<a class="crumb" href="` + e(d.BackURL) + `">Library</a>`)
+	b.WriteString(`<span class="sep">/</span>`)
 	b.WriteString(`<span class="title">` + esc(d.Title) + `</span>`)
 	b.WriteString(`<span class="badge ` + statusClass(d.Status) + `">` + esc(d.Status) + `</span>`)
 	b.WriteString(`<div class="chips">`)
@@ -86,9 +91,6 @@ func pageViewScript(d PageViewData) string {
 })();</script>`
 }
 
-func iconBack() string {
-	return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M19 12H5m6-7-7 7 7 7"/></svg>`
-}
 func iconPrev() string {
 	return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>`
 }
@@ -114,6 +116,9 @@ background:var(--bg);color:var(--text);font-size:15px}
 a{text-decoration:none;color:inherit}
 .pv{display:flex;align-items:center;gap:9px;height:52px;padding:0 14px;background:var(--surface);border-bottom:1px solid var(--border)}
 .pv .title{font-weight:600;color:var(--strong);font-size:14px;white-space:nowrap}
+.pv a.crumb{color:var(--muted);font-size:13px;transition:color .1s}
+.pv a.crumb:hover{color:var(--text)}
+.pv .sep{color:var(--muted);opacity:.55;margin:0 1px}
 .pv .chips{display:flex;align-items:center;gap:6px;overflow:hidden}
 .pv .navr{margin-left:auto;display:flex;align-items:center;gap:6px;flex:none}
 .badge{font:600 11px var(--font);padding:2px 8px;border-radius:999px}
