@@ -208,8 +208,7 @@ func changeTourMarkup() string {
   <button type="button" class="cf-btn" id="cfBtn" hidden aria-label="What changed" title="What changed"><i></i>What changed</button>
   <div class="cf-card" id="cfCard" role="dialog" aria-label="What changed" aria-hidden="true" hidden>
     <div class="cf-head"><span class="cf-step" id="cfStep"></span><button type="button" class="icon-btn cf-close" id="cfClose" aria-label="Close what-changed" title="Close">` + iconClose() + `</button></div>
-    <div class="cf-title" id="cfTitle"></div>
-    <div class="cf-desc" id="cfDesc"></div>
+    <div class="cf-body"><div class="cf-title" id="cfTitle"></div><div class="cf-desc" id="cfDesc"></div></div>
     <div class="cf-actions">
       <button type="button" class="cf-pill" id="cfPrev">Prev</button>
       <button type="button" class="cf-pill" id="cfNext">Next</button>
@@ -649,30 +648,34 @@ font:600 13px var(--font);cursor:pointer}
 .cp-item-body{font-size:13px;color:var(--text);line-height:1.6}
 .cp-item-quote{font-size:12px;font-style:italic;color:var(--muted);line-height:1.55;border-left:2px solid var(--border);padding:1px 0 1px 9px;margin-top:10px}
 .cp-empty{font-size:12.5px;color:var(--muted)}
-/* ── What-changed walkthrough ── */
+/* ── What-changed walkthrough ──
+   Styled to match the shell's flat Nord surfaces (comment panel + header):
+   --surface body, --border edge, --hair dividers, --rs radius, subtle shadow,
+   and an accent-soft primary that survives dark mode. */
 .cf-btn{position:fixed;left:16px;bottom:16px;z-index:45;display:inline-flex;align-items:center;gap:7px;
 border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:999px;
-padding:8px 14px;font:600 12.5px var(--font);cursor:pointer;box-shadow:0 2px 10px rgba(0,0,0,.10);
+padding:8px 14px;font:600 12.5px var(--font);cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.08);
 transition:background .1s,color .1s,border-color .1s}
 .cf-btn:hover{background:var(--surface2);border-color:var(--text)}
 .cf-btn[hidden]{display:none}
 .cf-btn i{width:8px;height:8px;border-radius:999px;background:var(--acc)}
 .cf-card{position:fixed;z-index:46;left:50%;top:64px;transform:translateX(-50%);width:380px;max-width:92vw;
-background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
-box-shadow:0 10px 34px rgba(0,0,0,.18);padding:14px 16px}
+background:var(--surface);border:1px solid var(--border);border-radius:var(--rs);
+box-shadow:0 6px 20px rgba(0,0,0,.12);padding:0}
 .cf-card[hidden]{display:none}
-.cf-head{display:flex;align-items:center;gap:10px;margin-bottom:8px}
+.cf-head{display:flex;align-items:center;gap:10px;padding:14px 16px 11px;border-bottom:1px solid var(--hair)}
 .cf-step{font:600 11px var(--font);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 .cf-close{margin-left:auto}
+.cf-body{padding:13px 16px}
 .cf-title{font-weight:600;color:var(--strong);font-size:14px}
 .cf-desc{color:var(--muted);font-size:12.5px;line-height:1.55;margin-top:3px}
-.cf-actions{display:flex;align-items:center;gap:8px;margin-top:12px}
+.cf-actions{display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--hair)}
 .cf-pill{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:var(--rs);
 padding:7px 14px;font:600 12.5px var(--font);cursor:pointer}
 .cf-pill:hover{background:var(--surface2)}
 .cf-pill:disabled{opacity:.4;cursor:not-allowed}
-.cf-pill.cf-primary{background:var(--acc);border-color:var(--acc);color:#fff}
-.cf-pill.cf-primary:hover{filter:brightness(.96)}
+.cf-pill.cf-primary{background:var(--acc-soft);border-color:var(--acc);color:var(--acc)}
+.cf-pill.cf-primary:hover{background:var(--surface)}
 @media(prefers-reduced-motion:reduce){.cf-btn,.cf-card{transition:none}}
 @media(prefers-reduced-motion:reduce){.comment-panel{transition:opacity .18s ease;transform:none}
 .comment-panel.open{transform:none}
