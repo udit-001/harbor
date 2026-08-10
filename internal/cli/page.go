@@ -104,6 +104,7 @@ Examples:
 		if err != nil {
 			return formatError("failed to create page", err)
 		}
+		notifyPage(workspaceName, page.Slug)
 
 		if jsonEnabled(cmd) {
 			return printPageJSON(s, page)
@@ -250,6 +251,7 @@ Examples:
 		if err != nil {
 			return formatError("failed to update page", err)
 		}
+		notifyPage(wsName.Name, updated.Slug)
 
 		if jsonEnabled(cmd) {
 			return printPageJSON(s, updated)
@@ -286,6 +288,7 @@ Examples:
 			return formatError("failed to delete page", err)
 		}
 		_ = os.Remove(managedPagePath(wsName.Name, slug)) // best-effort file cleanup
+		notifyPage(wsName.Name, slug)
 
 		if jsonEnabled(cmd) {
 			printJSON(map[string]any{"slug": slug, "deleted": true})

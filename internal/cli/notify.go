@@ -36,6 +36,18 @@ func notifyPageChanged(wsName, pageType string, seq int, slug string) {
 	notifyServerFull("workspace:"+wsName, "page-changed", pageType, seq, slug)
 }
 
+// notifyPage tells the dashboard a page mutation happened. It refreshes the
+// library home ("changed") and any open page view for that slug
+// ("page-changed" on the workspace topic). Both are best-effort no-ops when
+// no dashboard is subscribed. Pass name=="" to skip the page-changed and only
+// refresh the home list.
+func notifyPage(name, slug string) {
+	if name != "" {
+		notifyPageChanged(name, "page", 0, slug)
+	}
+	notifyServer("home", "changed", 0)
+}
+
 func notifyServerFull(topic, typ, pageType string, seq int, slug string) {
 	port, ok := runningServerPort()
 	if !ok {

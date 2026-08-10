@@ -34,6 +34,14 @@ func PageView(d PageViewData) string {
 	b.WriteString(pageViewHeader(d))
 	b.WriteString(`<div class="wrap"><iframe id="frame" src="` + e(d.RawURL) + `" title="` + esc(d.Title) + `"></iframe></div>`)
 	b.WriteString(pageViewScript(d))
+	if d.Workspace != "" {
+		// Live-sync: reload this page's iframe (preserving scroll) when its
+		// content changes, and follow agent-driven navigation.
+		b.WriteString(liveSyncScript("workspace:"+d.Workspace, `{
+  pageChanged: function(ev){ if(ev.slug==='`+d.Slug+`'){ var f=document.getElementById('frame'); if(f&&f.contentWindow){ try{ var y=f.contentWindow.scrollY; f.addEventListener('load',function rst(){ f.removeEventListener('load',rst); try{ f.contentWindow.scrollTo(0,y); }catch(_){} }); f.contentWindow.location.reload(); }catch(_){} } } },
+  navigate: function(ev){ if(ev.url) location.href=ev.url; }
+}`))
+	}
 	b.WriteString(`</body></html>`)
 	return b.String()
 }

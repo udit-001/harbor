@@ -350,8 +350,11 @@ func libraryScript(data LibraryData) string {
   function setTheme(t){ document.documentElement.dataset.theme=t; try{localStorage.setItem('harbor_theme',t);}catch(e){} }
   var themeBtn=document.getElementById('theme-toggle');
   if(themeBtn) themeBtn.addEventListener('click',function(){ setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'); });
+
+  // Live-sync hook: refetch the full dataset and re-apply the current filters.
+  window.__harborReload=function(){ fetch('/api/pages').then(function(r){return r.json();}).then(function(list){ ALL=Array.isArray(list)?list:[]; ready=true; apply(); }).catch(function(){}); };
 })();
-</script></body></html>`
+</script>` + liveSyncScript("home", `{ changed: function(){ if(window.__harborReload) window.__harborReload(); } }`) + `</body></html>`
 }
 
 func logo() string {
