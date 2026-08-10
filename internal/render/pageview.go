@@ -230,10 +230,7 @@ func commentPanelScript(slug string) string {
     state={type:'general',anchor:'',quote:''};
     body.value='';
     typeSel.value='general';
-    picking=false;
-    pickBtn.classList.remove('active');
-    pickBtn.setAttribute('aria-pressed','false');
-    errEl.classList.remove('show');
+    setPicking(false);
     renderState();
   }
   function setOpen(v){
@@ -249,6 +246,55 @@ func commentPanelScript(slug string) string {
     }
   }
   function showHeader(){ const pv=document.getElementById('pv'); pv&&pv.classList.add('is-visible'); }
+
+  // ── Element-pick highlight ────────────────────────────────────────────────
+  // While pick mode is armed, hovering an element in the page highlights it
+  // with the Nord accent so the user can see exactly what a click will anchor
+  // to. The highlight is injected into the iframe (ephemeral, never saved) and
+  // removed on disarm.
+  let pickStyle=null, hoverEl=null;
+  function setPicking(on){
+    picking=on;
+    pickBtn.classList.toggle('active',on);
+    pickBtn.setAttribute('aria-pressed',String(on));
+    if(on){
+      errEl.textContent='Click an element in the page to anchor to it.'; errEl.classList.add('show');
+      addPickHover();
+    } else {
+      errEl.classList.remove('show');
+      removePickHover();
+    }
+  }
+  function addPickHover(){
+    removePickHover();
+    if(!doc||!doc.head) return;
+    const theme=document.documentElement.dataset.theme||'light';
+    const accent=(theme==='dark')?'#88c0d0':'#5e81ac';
+    const tint=(theme==='dark')?'rgba(136,192,208,.20)':'rgba(94,129,172,.14)';
+    pickStyle=doc.createElement('style'); pickStyle.id='cp-pick-style';
+    pickStyle.textContent=
+      'html.cp-picking,html.cp-picking *{cursor:pointer!important}'+
+      '.cp-hover{outline:2px solid '+accent+'!important;outline-offset:-2px!important;'+
+      'box-shadow:inset 0 0 0 1000px '+tint+'!important}';
+    doc.head.appendChild(pickStyle);
+    doc.documentElement.classList.add('cp-picking');
+  }
+  function removePickHover(){
+    if(pickStyle&&pickStyle.parentNode) pickStyle.parentNode.removeChild(pickStyle);
+    pickStyle=null;
+    if(doc) doc.documentElement.classList.remove('cp-picking');
+    if(hoverEl){ hoverEl.classList.remove('cp-hover'); hoverEl=null; }
+  }
+  // Track the deepest element under the pointer while picking and highlight it.
+  function trackHover(ev){
+    if(!picking) return;
+    const el=doc.elementFromPoint(ev.clientX,ev.clientY);
+    if(el===hoverEl) return;
+    if(hoverEl) hoverEl.classList.remove('cp-hover');
+    hoverEl=el;
+    if(hoverEl) hoverEl.classList.add('cp-hover');
+  }
+
   btn.addEventListener('click',()=>setOpen(!open));
   close.addEventListener('click',()=>setOpen(false));
   document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'&&open) setOpen(false); });
@@ -301,23 +347,17 @@ func commentPanelScript(slug string) string {
         renderState(); setOpen(true);
       }
     },true);
+    doc.addEventListener('mousemove',trackHover,true);
     doc.addEventListener('click',(ev)=>{
       if(!picking) return;
-      picking=false; pickBtn.classList.remove('active'); pickBtn.setAttribute('aria-pressed','false');
-      errEl.classList.remove('show');
       state={type:'element',anchor:cssPath(ev.target),quote:''};
+      setPicking(false);
       renderState(); setOpen(true);
     },true);
   }
   frame.addEventListener('load',wire);
   wire();
-  pickBtn.addEventListener('click',()=>{
-    picking=!picking;
-    pickBtn.classList.toggle('active',picking);
-    pickBtn.setAttribute('aria-pressed',String(picking));
-    if(picking){ errEl.textContent='Click an element in the page to anchor to it.'; errEl.classList.add('show'); }
-    else errEl.classList.remove('show');
-  });
+  pickBtn.addEventListener('click',()=>{ setPicking(!picking); });
 
   // Submit the pending comment.
   form.addEventListener('submit',(e)=>{
