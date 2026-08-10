@@ -1,0 +1,126 @@
+package cli
+
+import (
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+
+	"github.com/spf13/cobra"
+	"github.com/udit-001/harbor/internal/version"
+)
+
+const buildOutput = "bin/harbor"
+
+const templVersion = "v0.3.1020"
+
+var buildFlags struct {
+	noCSS bool
+}
+
+var buildCmd = &cobra.Command{
+	Use:   "build",
+	Short: "Build the harbor binary (rebuilds CSS + compiles Go)",
+	Long: `Build the harbor CLI binary from source.
+
+Steps:
+  1. Rebuild CSS from web/input.css using the Tailwind CLI (unless --no-css)
+  2. Copy the generated CSS into the embed directory
+  3. Compile the Go binary to ./bin/harbor
+
+Requires 'go' on PATH and the Tailwind CLI at .bin/tailwindcss.
+Run 'harbor tailwind download' first if needed.`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runBuild()
+	},
+}
+
+func init() {
+	rootCmd.AddCommand(buildCmd)
+	buildCmd.Flags().BoolVar(&buildFlags.noCSS, "no-css", false, "Skip CSS rebuild")
+}
+
+func runBuild() error {
+	root := mustProjectRoot()
+
+	if !buildFlags.noCSS {
+		tailwindBin := filepath.Join(root, ".bin", "tailwindcss")
+		if _, err := os.Stat(tailwindBin); err != nil {
+			return fmt.Errorf("tailwind CLI not found at %s — run `harbor tailwind download` first", tailwindBin)
+		}
+
+		fmt.Println()
+		fmt.Println("  Building CSS...")
+
+		tw := exec.Command(tailwindBin,
+			"--input", tailwindInput,
+			"--output", tailwindOutput,
+			"--content", tailwindContent,
+			"--minify")
+		tw.Dir = root
+		tw.Stdout = os.Stdout
+		tw.Stderr = os.Stderr
+		if err := tw.Run(); err != nil {
+			return fmt.Errorf("tailwind build failed: %w", err)
+		}
+
+		cssOut := filepath.Join(root, tailwindOutput)
+		cssEmbed := filepath.Join(root, tailwindCSSEmbed)
+		data, err := os.ReadFile(cssOut)
+		if err != nil {
+			return fmt.Errorf("read generated CSS: %w", err)
+		}
+		if err := os.WriteFile(cssEmbed, data, 0o644); err != nil {
+			return fmt.Errorf("write embedded CSS: %w", err)
+		}
+		if err := runTemplGenerate(root); err != nil {
+			return err
+		}
+	}
+
+	fmt.Println()
+	fmt.Println("  Compiling Go binary...")
+
+	if err := os.MkdirAll(filepath.Dir(filepath.Join(root, buildOutput)), 0o755); err != nil {
+		return fmt.Errorf("create bin dir: %w", err)
+	}
+	cmd := exec.Command("go", "build", "-o", buildOutput, "./cmd/harbor")
+	cmd.Dir = root
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("go build failed: %w", err)
+	}
+
+	v := version.DisplayVersion()
+	if version.Commit != "" {
+		short := version.Commit
+		if len(short) > 7 {
+			short = short[:7]
+		}
+		v += fmt.Sprintf(", %s", short)
+	}
+	fmt.Println()
+	fmt.Printf("  ✓ Built harbor (%s)\n", v)
+	fmt.Println()
+
+	return nil
+}
+
+func runTemplGenerate(root string) error {
+	if _, err := exec.LookPath("templ"); err != nil {
+		fmt.Println("  (templ CLI not found — using committed *_templ.go)")
+		fmt.Printf("    install: go install github.com/a-h/templ/cmd/templ@%s\n", templVersion)
+		return nil
+	}
+	fmt.Println("  Generating templ components...")
+	tc := exec.Command("templ", "generate")
+	tc.Dir = root
+	tc.Stdout = os.Stdout
+	tc.Stderr = os.Stderr
+	if err := tc.Run(); err != nil {
+		return fmt.Errorf("templ generate failed: %w", err)
+	}
+	return nil
+}

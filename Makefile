@@ -1,0 +1,46 @@
+.PHONY: build install clean run test css tidy dev fmt check
+
+# Build the pharos CLI binary (includes embedded CSS)
+build: css
+	mkdir -p bin
+	go build -o bin/pharos ./cmd/pharos
+
+# Build Tailwind CSS from source (scans Go files for classes directly)
+css:
+	./.bin/tailwindcss --input web/input.css --output web/app.css --content "**/*.go" --minify
+	cp web/app.css internal/web/app.css
+
+# Install to GOPATH/bin
+install: css
+	go install ./cmd/pharos
+
+# Clean build artifacts
+clean:
+	rm -f bin/pharos
+	go clean
+
+# Run directly
+run: css
+	go run ./cmd/pharos
+
+# Test
+test:
+	go test ./...
+
+# Format Go code
+fmt:
+	gofmt -s -w .
+
+# Check formatting, vet, and test
+check:
+	test -z "$(gofmt -l .)"
+	go vet ./...
+	go test ./...
+
+# Tidy dependencies
+tidy:
+	go mod tidy
+
+# Hot-reload dev server (rebuilds Go + CSS on change)
+dev:
+	go run ./cmd/pharos dev

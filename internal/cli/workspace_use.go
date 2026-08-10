@@ -1,0 +1,100 @@
+package cli
+
+import (
+	"fmt"
+
+	"github.com/spf13/cobra"
+)
+
+var workspaceUseCmd = &cobra.Command{
+	Use:   "use <name>",
+	Short: "Set the current workspace",
+	Long: `Set the current workspace so subsequent commands default to it
+without needing --workspace.
+
+Examples:
+  harbor workspace use "sql-for-research"
+  harbor workspace use "yoga"`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		s := mustStore(cmd)
+		name := args[0]
+
+		wsStore, err := s.Workspace(name)
+		if err != nil {
+			return fmt.Errorf("workspace %q not found\n  Use 'harbor workspace list' to see available workspaces", name)
+		}
+		ws := wsStore.Workspace()
+
+		if err := s.SetCurrentWorkspace(name); err != nil {
+			return formatError("failed to set current workspace", err)
+		}
+
+		if jsonEnabled(cmd) {
+			printJSON(ws)
+			return nil
+		}
+
+		fmt.Println()
+		fmt.Printf("  ✓ Current workspace: %s\n", ws.DisplayName())
+		fmt.Println()
+		return nil
+	},
+}
+
+var workspaceCurrentCmd = &cobra.Command{
+	Use:   "current",
+	Short: "Show the current workspace",
+	Long:  `Print the current workspace name. When none is set, show a hint to pick one.`,
+	Args:  cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		s := mustStore(cmd)
+		name, err := s.CurrentWorkspace()
+		if err != nil {
+			return formatError("failed to get current workspace", err)
+		}
+
+		if name == "" {
+			if jsonEnabled(cmd) {
+				printJSON(nil)
+				return nil
+			}
+			fmt.Println()
+			fmt.Println("  No current workspace set.")
+			fmt.Println("  Use 'harbor workspace use <name>' to set one.")
+			fmt.Println()
+			return nil
+		}
+
+		wsStore, err := s.Workspace(name)
+		if err != nil {
+			// Workspace was deleted — clear the stale reference
+			_ = s.SetCurrentWorkspace("")
+			if jsonEnabled(cmd) {
+				printJSON(nil)
+				return nil
+			}
+			fmt.Println()
+			fmt.Println("  No current workspace set.")
+			fmt.Println("  Use 'harbor workspace use <name>' to set one.")
+			fmt.Println()
+			return nil
+		}
+		ws := wsStore.Workspace()
+
+		if jsonEnabled(cmd) {
+			printJSON(ws)
+			return nil
+		}
+
+		fmt.Println()
+		fmt.Printf("  Current workspace: %s\n", ws.DisplayName())
+		fmt.Println()
+		return nil
+	},
+}
+
+func init() {
+	workspaceCmd.AddCommand(workspaceUseCmd)
+	workspaceCmd.AddCommand(workspaceCurrentCmd)
+}

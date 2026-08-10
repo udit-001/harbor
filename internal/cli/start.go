@@ -1,0 +1,201 @@
+package cli
+
+import (
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"os"
+	"os/exec"
+	"strconv"
+	"time"
+
+	"github.com/spf13/cobra"
+	"github.com/udit-001/harbor/internal/config"
+	"github.com/udit-001/harbor/internal/db"
+	"github.com/udit-001/harbor/internal/server"
+	"github.com/udit-001/harbor/internal/urls"
+	"github.com/udit-001/harbor/internal/version"
+)
+
+func startDaemon(port int) (*exec.Cmd, error) {
+	args := []string{
+		os.Args[0], "start",
+		"--port", strconv.Itoa(port),
+		"--no-open",
+		"--daemon",
+	}
+	c := exec.Command(args[0], args[1:]...)
+	c.Stdin = nil
+	c.Stdout = nil
+	c.Stderr = nil
+	detachDaemon(c)
+	if err := c.Start(); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+const defaultPort = config.DefaultPort
+
+var startFlags struct {
+	port       int
+	noOpen     bool
+	foreground bool
+	background bool
+	daemon     bool
+	devCSS     bool
+}
+
+var startCmd = &cobra.Command{
+	Use:   "start",
+	Short: "Start the web UI dashboard",
+	Long: `Start a local web server with a read-only learning dashboard.
+
+If a server is already running, prints its URL and returns.
+Otherwise, starts the server in the background and prints the URL.
+
+The dashboard opens on the current workspace if one is set,
+otherwise on the main dashboard page.
+
+Examples:
+  harbor start
+  harbor start --port 9090
+  harbor start --foreground`,
+	Args: cobra.NoArgs,
+	RunE: func(cmd *cobra.Command, args []string) error {
+		s := mustStore(cmd)
+		port := resolvePort(cmd)
+
+		// Check if server is already running
+		if info, err := readPidFile(); err == nil && isServerRunning(info.Port) {
+			url := dashboardURL(s, info.Port)
+			if jsonEnabled(cmd) {
+				printJSON(map[string]any{"url": url, "running": true, "port": info.Port})
+				return nil
+			}
+			fmt.Println()
+			fmt.Printf("  Pharos dashboard already running (%s)\n", version.DisplayVersion())
+			fmt.Printf("  %s\n", url)
+			fmt.Println()
+			return nil
+		}
+
+		background := startFlags.background && !startFlags.foreground
+		if background && !startFlags.daemon {
+			c, err := startDaemon(port)
+			if err != nil {
+				return fmt.Errorf("failed to start background server: %w", err)
+			}
+
+			// Wait briefly for server to come up
+			time.Sleep(500 * time.Millisecond)
+
+			// Find the actual port from the PID file
+			if info, err := readPidFile(); err == nil {
+				port = info.Port
+			}
+
+			url := dashboardURL(s, port)
+			if jsonEnabled(cmd) {
+				printJSON(map[string]any{"url": url, "running": true, "port": port})
+				return nil
+			}
+			fmt.Println()
+			fmt.Printf("  Pharos server started in background (%s, PID: %d)\n", version.DisplayVersion(), c.Process.Pid)
+			fmt.Printf("  %s\n", url)
+			fmt.Println()
+			return nil
+		}
+
+		if !startFlags.daemon {
+			fmt.Println()
+			fmt.Println("  Starting Pharos dashboard...")
+			fmt.Println()
+		}
+
+		// Write PID file before starting server
+		pidPath := config.PidPath()
+		_ = os.MkdirAll(config.ConfigDir(), 0o755)
+
+		// The server will write the actual port to the PID file
+		// after it binds. For now, write a placeholder.
+		_ = os.WriteFile(pidPath, []byte(fmt.Sprintf(`{"port":%d,"pid":%d}`, port, os.Getpid())), 0o644)
+
+		return server.Start(server.Config{
+			Port:   port,
+			DB:     s,
+			NoOpen: startFlags.noOpen,
+			Silent: startFlags.daemon,
+			DevCSS: startFlags.devCSS,
+		})
+	},
+}
+
+// resolvePort picks the port: explicit --port flag wins, otherwise the
+// config file value, otherwise the default (9090). The port is an identity
+// decision (pinned shortcuts record this origin), so there is no auto-increment.
+func resolvePort(cmd *cobra.Command) int {
+	if cmd.Flags().Changed("port") {
+		return startFlags.port
+	}
+	cfg, err := config.Load()
+	if err == nil && cfg != nil && cfg.Port != 0 {
+		return cfg.Port
+	}
+	return defaultPort
+}
+
+func init() {
+	rootCmd.AddCommand(startCmd)
+	startCmd.Flags().IntVar(&startFlags.port, "port", defaultPort, "HTTP server port")
+	startCmd.Flags().BoolVar(&startFlags.noOpen, "no-open", false, "Don't auto-open browser")
+	startCmd.Flags().BoolVarP(&startFlags.foreground, "foreground", "f", false, "Run server in foreground")
+	startCmd.Flags().BoolVarP(&startFlags.background, "background", "b", true, "Run server in background")
+	startCmd.Flags().BoolVar(&startFlags.daemon, "daemon", false, "")
+	startCmd.Flags().BoolVar(&startFlags.devCSS, "dev-css", false, "Serve CSS from disk (dev mode; run from project root)")
+	startCmd.Flags().MarkHidden("daemon")
+}
+
+// pidInfo represents the server.pid file content.
+type pidInfo struct {
+	Port int `json:"port"`
+	PID  int `json:"pid"`
+}
+
+func readPidFile() (*pidInfo, error) {
+	pidPath := config.PidPath()
+	data, err := os.ReadFile(pidPath)
+	if err != nil {
+		return nil, err
+	}
+	var info pidInfo
+	if err := json.Unmarshal(data, &info); err != nil {
+		return nil, err
+	}
+	return &info, nil
+}
+
+// isServerRunning checks if a server is actually listening on the given port.
+func isServerRunning(port int) bool {
+	resp, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/", port))
+	if err != nil {
+		return false
+	}
+	resp.Body.Close()
+	return true
+}
+
+// dashboardURL returns the URL for the dashboard, preferring the current workspace.
+func dashboardURL(s *db.Store, port int) string {
+	base := fmt.Sprintf("http://127.0.0.1:%d", port)
+	current, err := s.CurrentWorkspace()
+	if err != nil || current == "" {
+		return base + "/"
+	}
+	// Verify the workspace exists
+	_, err = s.Workspace(current)
+	if err != nil {
+		return base + "/"
+	}
+	return base + urls.Workspace(current)
+}

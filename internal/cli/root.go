@@ -1,0 +1,264 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/spf13/cobra"
+	"github.com/udit-001/harbor/internal/config"
+	"github.com/udit-001/harbor/internal/db"
+	"github.com/udit-001/harbor/internal/version"
+)
+
+func resolveDataDir() string {
+	cfg, err := config.Load()
+	if err != nil {
+		return config.DefaultDataDir()
+	}
+	if cfg != nil && cfg.DataDir != "" {
+		return cfg.DataDir
+	}
+	return config.DefaultDataDir()
+}
+
+func defaultWorkspacesDir() string {
+	return filepath.Join(resolveDataDir(), "workspaces")
+}
+
+// jsonEnabled reports whether --json was provided for this command run. The
+// flag is read off the command (not a package global) so it never leaks between
+// executions — including across shared-rootCmd test runs.
+func jsonEnabled(cmd *cobra.Command) bool {
+	v, _ := cmd.Flags().GetBool("json")
+	return v
+}
+
+// ctxStore is the context key for the injected *db.Store.
+type ctxStore struct{}
+
+// mustStore retrieves the injected *db.Store from the command context.
+// It panics if the store is not present (which means PersistentPreRunE
+// was skipped — i.e. a help/version/init/migrate command).
+func mustStore(cmd *cobra.Command) *db.Store {
+	s, ok := cmd.Context().Value(ctxStore{}).(*db.Store)
+	if !ok || s == nil {
+		panic("store not available in context — command missing from PersistentPreRunE skip list?")
+	}
+	return s
+}
+
+var rootCmd = &cobra.Command{
+	Use:     "harbor",
+	Short:   "Manage learning lessons and workspaces",
+	Version: version.Version,
+	Long: `A CLI tool to create and manage learning workspaces.
+
+Data is stored in a local SQLite database. Each workspace is a
+directory containing MISSION.md, lessons/, learning-records/,
+reference/, assets/, RESOURCES.md, and NOTES.md.
+
+Use 'harbor init' to set up harbor, then 'harbor workspace create'
+to start a workspace.
+
+Most commands support --json for machine-readable output.
+When only one workspace exists, most commands use it automatically
+without needing --workspace.`,
+	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+		if cmd.Name() == "help" || cmd.Name() == "completion" || cmd.Name() == "version" || cmd.Name() == "init" || cmd.Name() == "config" || cmd.Name() == "migrate" || cmd.Name() == "dev" || cmd.Name() == "upgrade" || cmd.Name() == "tailwind" || cmd.Name() == "build" {
+			return nil
+		}
+		// Parent commands only ever print help or error on args — no DB needed.
+		if cmd.HasSubCommands() {
+			return nil
+		}
+		// Migrate and tailwind subcommands also handle their own DB
+		if cmd.Parent() != nil && (cmd.Parent().Name() == "migrate" || cmd.Parent().Name() == "tailwind" || cmd.Parent().Name() == "skills") {
+			return nil
+		}
+		// Load config with auto-migration for existing users
+		cfg, err := config.Load()
+		if err != nil {
+			return fmt.Errorf("config error: %w\n\n  Fix or delete %s", err, config.Path())
+		}
+		if cfg == nil {
+			defaultDir := config.DefaultDataDir()
+			defaultDB := filepath.Join(defaultDir, "harbor.db")
+			if _, statErr := os.Stat(defaultDB); statErr == nil {
+				cfg = &config.Config{DataDir: defaultDir}
+				if saveErr := config.Save(cfg); saveErr != nil {
+					return fmt.Errorf("auto-migrate config: %w", saveErr)
+				}
+			}
+		}
+		dataDir := resolveDataDir()
+		s, err := db.Open(filepath.Join(dataDir, "harbor.db"))
+		if err != nil {
+			return fmt.Errorf("open database: %w\n\n  Run 'harbor init' to set up harbor", err)
+		}
+		ctx := context.WithValue(cmd.Context(), ctxStore{}, s)
+		cmd.SetContext(ctx)
+		return nil
+	},
+	PersistentPostRunE: func(cmd *cobra.Command, args []string) error {
+		s, ok := cmd.Context().Value(ctxStore{}).(*db.Store)
+		if ok && s != nil {
+			return s.Close()
+		}
+		return nil
+	},
+}
+
+func init() {
+	rootCmd.PersistentFlags().Bool("json", false, "Output as JSON")
+	rootCmd.SilenceErrors = true
+	rootCmd.SilenceUsage = true
+}
+
+// Execute runs the root command.
+func Execute() {
+	cmd, err := rootCmd.ExecuteC()
+	if err != nil {
+		if jsonEnabled(cmd) {
+			printJSON(map[string]any{"error": err.Error()})
+		} else {
+			cmd.PrintErrln(cmd.ErrPrefix(), err.Error())
+			cmd.Println(cmd.UsageString())
+		}
+		os.Exit(1)
+	}
+}
+
+func printJSON(v any) {
+	enc := json.NewEncoder(os.Stdout)
+	enc.SetIndent("", "  ")
+	enc.Encode(v)
+}
+
+func formatError(msg string, err error) error {
+	if err != nil {
+		return fmt.Errorf("%s: %w", msg, err)
+	}
+	return fmt.Errorf("%s", msg)
+}
+
+func truncate(s string, max int) string {
+	if len(s) > max {
+		return s[:max-3] + "..."
+	}
+	return s
+}
+
+// writeWorkspaceFile writes content from a body file to a workspace path,
+// touches last_studied, and prints a success message. Used by mission,
+// resources, and glossary commands for non-interactive updates.
+func writeWorkspaceFile(wsStore *db.WorkspaceStore, targetPath, bodyFile, label string) error {
+	data, err := readBodyFile(bodyFile)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(targetPath, data, 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", label, err)
+	}
+	_ = wsStore.Touch()
+	fmt.Println()
+	fmt.Printf("  ✓ %s updated\n", label)
+	fmt.Println()
+	return nil
+}
+
+// readAndPrintFile reads a workspace file and prints its content.
+func readAndPrintFile(ws db.Workspace, filePath string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("read file: %w", err)
+	}
+	fmt.Println()
+	fmt.Printf("  Workspace: %s\n", ws.DisplayName())
+	fmt.Println()
+	fmt.Println(string(data))
+	fmt.Println()
+	return nil
+}
+
+// readAndPrintJSON reads a workspace file and outputs it as JSON.
+func readAndPrintJSON(ws db.Workspace, filePath, fileName string) error {
+	data, err := os.ReadFile(filePath)
+	if err != nil {
+		return fmt.Errorf("read file: %w", err)
+	}
+	printJSON(struct {
+		Workspace string `json:"workspace"`
+		File      string `json:"file"`
+		Content   string `json:"content"`
+	}{
+		Workspace: ws.DisplayName(),
+		File:      fileName,
+		Content:   string(data),
+	})
+	return nil
+}
+
+func formatDateShort(ts string) string {
+	if len(ts) >= 10 {
+		return ts[:10]
+	}
+	return ts
+}
+
+func formatTable(header []string, rows [][]string) string {
+	if len(rows) == 0 {
+		return ""
+	}
+	colWidths := make([]int, len(header))
+	for i, h := range header {
+		colWidths[i] = len(h)
+	}
+	for _, row := range rows {
+		for i, cell := range row {
+			if len(cell) > colWidths[i] {
+				colWidths[i] = len(cell)
+			}
+		}
+	}
+	for i := range colWidths {
+		if colWidths[i] > 40 {
+			colWidths[i] = 40
+		}
+	}
+
+	var b strings.Builder
+	for i, h := range header {
+		if i > 0 {
+			b.WriteString("  ")
+		}
+		fmt.Fprintf(&b, "%-*s", colWidths[i], h)
+	}
+	b.WriteString("\n")
+
+	sepCount := 0
+	for _, w := range colWidths {
+		sepCount += w
+	}
+	b.WriteString(strings.Repeat("─", sepCount+2*(len(header)-1)))
+	b.WriteString("\n")
+
+	for _, row := range rows {
+		for i, cell := range row {
+			if i > 0 {
+				b.WriteString("  ")
+			}
+			display := cell
+			if len(display) > colWidths[i] {
+				display = display[:colWidths[i]-3] + "..."
+			}
+			fmt.Fprintf(&b, "%-*s", colWidths[i], display)
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
+}
