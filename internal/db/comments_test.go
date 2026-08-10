@@ -114,6 +114,43 @@ func TestCommentCreateListUpdateClose(t *testing.T) {
 	}
 }
 
+func TestOpenCommentCountsDerived(t *testing.T) {
+	s := newTestStore(t)
+	a := seedPageForComments(t, s, "ws", "page-a")
+	b := seedPageForComments(t, s, "ws2", "page-b")
+	c := seedPageForComments(t, s, "ws3", "page-c") // no comments
+
+	if _, err := s.CreateComment(a, "", "", CommentTypeGeneral, "one"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if _, err := s.CreateComment(a, ".hero", "", CommentTypeElement, "two"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if _, err := s.CreateComment(b, "", "", CommentTypeGeneral, "one on b"); err != nil {
+		t.Fatalf("create: %v", err)
+	}
+
+	counts, err := s.OpenCommentCounts()
+	if err != nil {
+		t.Fatalf("open counts: %v", err)
+	}
+	if counts[a] != 2 || counts[b] != 1 {
+		t.Fatalf("counts = %+v, want page-a=2 page-b=1", counts)
+	}
+	if _, ok := counts[c]; ok {
+		t.Fatalf("page-c with no open comments should be absent, got %+v", counts)
+	}
+
+	// Closing a comment drops it from the derived count (read-time derivation).
+	if _, err := s.CloseComment(2); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	counts, _ = s.OpenCommentCounts()
+	if counts[a] != 1 {
+		t.Fatalf("after close, page-a = %d, want 1", counts[a])
+	}
+}
+
 func TestCommentChangeRecord(t *testing.T) {
 	s := newTestStore(t)
 	slug := seedPageForComments(t, s, "ws", "landing")

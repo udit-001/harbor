@@ -28,6 +28,20 @@ func TestPageViewHasCommentPanel(t *testing.T) {
 	}
 }
 
+func TestPageViewFeedbackBadge(t *testing.T) {
+	// No open comments → no feedback badge in the page chrome.
+	if out := PageView(PageViewData{Slug: "x", Title: "X", RawURL: "/page/x/raw", BackURL: "/"}); strings.Contains(out, `id="pvFb"`) {
+		t.Errorf("page with no open comments should not render a feedback badge")
+	}
+	// Open comments → a themed badge with count.
+	out := PageView(PageViewData{Slug: "x", Title: "X", RawURL: "/page/x/raw", BackURL: "/", FeedbackOpen: 3})
+	for _, want := range []string{`id="pvFb"`, "3 open", "data-n=\"3\""} {
+		if !strings.Contains(out, want) {
+			t.Errorf("feedback badge missing %q", want)
+		}
+	}
+}
+
 // TestDashboardRendersStatsAndWorkspaces proves the render module's output is
 // a pure function of its view model — the seam created in LEARN-10.
 func TestDashboardRendersStatsAndWorkspaces(t *testing.T) {

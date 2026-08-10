@@ -76,6 +76,50 @@ func TestCommentsAPIEmptyThenCreate(t *testing.T) {
 	}
 }
 
+func TestOpenFeedbackIndicator(t *testing.T) {
+	env := newTestEnv(t)
+	slug := seedCommentPage(t, env) // "revenue-deep-dive"
+
+	// No open comments → /api/pages carries feedbackOpen 0, no badge anywhere.
+	var rows []map[string]any
+	json.Unmarshal(env.get(t, "/api/pages").Body.Bytes(), &rows)
+	for _, r := range rows {
+		if r["slug"] == slug {
+			if n := r["feedbackOpen"]; n != float64(0) {
+				t.Fatalf("feedbackOpen before comment = %v, want 0", n)
+			}
+		}
+	}
+	const fbBadge = `<span class="fb"><i></i>1 open</span>`
+	if got := env.get(t, "/").Body.String(); strings.Contains(got, fbBadge) {
+		t.Fatalf("library should not show an open-feedback badge without comments")
+	}
+	if got := env.get(t, "/page/"+slug).Body.String(); strings.Contains(got, `id="pvFb"`) {
+		t.Fatalf("page chrome should not show a feedback badge without comments")
+	}
+
+	// Open a comment → derived indicator appears everywhere (no persisted flag).
+	rec := postJSON(env, "/api/pages/"+slug+"/comments", `{"type":"general","body":"widen the hero"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("post status = %d; body: %s", rec.Code, rec.Body.String())
+	}
+
+	json.Unmarshal(env.get(t, "/api/pages").Body.Bytes(), &rows)
+	for _, r := range rows {
+		if r["slug"] == slug {
+			if n := r["feedbackOpen"]; n != float64(1) {
+				t.Fatalf("feedbackOpen after comment = %v, want 1", n)
+			}
+		}
+	}
+	if got := env.get(t, "/").Body.String(); !strings.Contains(got, fbBadge) {
+		t.Fatalf("library row missing open-feedback indicator:\n%s", got)
+	}
+	if got := env.get(t, "/page/"+slug).Body.String(); !strings.Contains(got, `id="pvFb"`) || !strings.Contains(got, "1 open") {
+		t.Fatalf("page chrome missing feedback badge:\n%s", got)
+	}
+}
+
 func TestCommentsAPIValidation(t *testing.T) {
 	env := newTestEnv(t)
 	slug := seedCommentPage(t, env)

@@ -2,6 +2,7 @@ package render
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 )
 
@@ -16,8 +17,9 @@ type PageViewData struct {
 	Tags      []string
 	RawURL    string // /page/<slug>/raw — the iframe src and pop-out target
 	BackURL   string // library URL preserving the current filter
-	PrevURL   string // "" when no previous page in the current set
-	NextURL   string // "" when no next page in the current set
+PrevURL   string   // "" when no previous page in the current set
+	NextURL   string   // "" when no next page in the current set
+	FeedbackOpen int   // open comments on this page (derived; drives the chrome badge)
 }
 
 // PageView renders the full page-view document. Mode is decided client-side:
@@ -59,7 +61,10 @@ func pageViewHeader(d PageViewData) string {
 	b.WriteString(`<a class="crumb" href="` + e(d.BackURL) + `">Library</a>`)
 	b.WriteString(`<span class="sep">/</span>`)
 	b.WriteString(`<span class="title">` + esc(d.Title) + `</span>`)
-	b.WriteString(`<span class="badge ` + statusClass(d.Status) + `">` + esc(d.Status) + `</span>`)
+b.WriteString(`<span class="badge ` + statusClass(d.Status) + `">` + esc(d.Status) + `</span>`)
+	if d.FeedbackOpen > 0 {
+		fmt.Fprintf(&b, `<span class="pv-fb" id="pvFb" data-n="%d" title="%d open comment(s)"><i></i>%d open</span>`, d.FeedbackOpen, d.FeedbackOpen, d.FeedbackOpen)
+	}
 	b.WriteString(`<div class="chips">`)
 	b.WriteString(`<span class="tag">` + e(d.Workspace) + `</span>`)
 	for _, t := range d.Tags {
@@ -390,10 +395,25 @@ func commentPanelScript(slug string) string {
     fetch(LIST_URL,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({type:state.type,anchor:state.anchor,quote:state.quote,body:text})})
       .then(r=>{ if(!r.ok) return r.json().then(j=>Promise.reject(j&&j.error)).catch(()=>Promise.reject('could not save comment ('+r.status+')')); return r.json(); })
-      .then(()=>{ resetCompose(); loadList(); })
+      .then(()=>{ resetCompose(); loadList(); bumpOpenFb(); })
       .catch(m=>{ errEl.textContent=m; errEl.classList.add('show'); })
       .finally(()=>{ submit.disabled=false; });
   });
+
+  // Reflect a newly-posted open comment in the page chrome badge (created from
+  // scratch if this was the page's first open comment).
+  function bumpOpenFb(){
+    var fb=document.getElementById('pvFb');
+    var n=fb? (parseInt(fb.getAttribute('data-n'),10)||0) : 0;
+    n+=1;
+    if(fb){ fb.setAttribute('data-n',String(n)); fb.setAttribute('title',n+' open comment(s)'); fb.innerHTML='<i></i>'+n+' open'; }
+    else {
+      var pv=document.getElementById('pv'); if(!pv||!document.querySelector('.pv .chips')) return;
+      var s=document.createElement('span'); s.id='pvFb'; s.className='pv-fb';
+      s.setAttribute('data-n','1'); s.setAttribute('title','1 open comment'); s.innerHTML='<i></i>1 open';
+      pv.insertBefore(s, document.querySelector('.pv .chips'));
+    }
+  }
 
   // List existing comments for the page.
   function escHTML(s){ return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
@@ -439,10 +459,13 @@ a{text-decoration:none;color:inherit}
 .pv .sep{color:var(--muted);opacity:.55;margin:0 1px}
 .pv .chips{display:flex;align-items:center;gap:6px;overflow:hidden}
 .pv .navr{margin-left:auto;display:flex;align-items:center;gap:6px;flex:none}
-.badge{font:600 11px var(--font);padding:2px 8px;border-radius:999px}
+.badge{padding:2px 8px;border-radius:999px;font:600 11px var(--font)}
 .badge.pub{color:var(--ok);background:var(--ok-soft)}
 .badge.draft{color:var(--warn);background:var(--warn-soft)}
 .badge.arch{color:var(--arch);background:var(--arch-soft)}
+.pv-fb{display:inline-flex;align-items:center;gap:5px;color:var(--warn);font:600 11px var(--font);
+background:var(--warn-soft);border-radius:999px;padding:2px 8px;white-space:nowrap}
+.pv-fb i{width:7px;height:7px;border-radius:999px;background:var(--warn)}
 .tag{font-size:11.5px;color:var(--muted);background:var(--surface);border:1px solid var(--hair);border-radius:4px;padding:0 6px}
 .icon-btn{border:1px solid transparent;background:transparent;color:var(--muted);width:32px;height:32px;border-radius:var(--rs);
 display:grid;place-items:center;transition:color .1s;cursor:pointer}

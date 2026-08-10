@@ -167,6 +167,32 @@ func (s *Store) ListComments(filter CommentFilter) ([]CommentView, error) {
 	return scanCommentViews(rows)
 }
 
+// OpenCommentCounts returns page slug → number of open comments, the input to
+// the derived open-feedback state (Library rows + page chrome). Derived at read
+// time from the comments queue — no persisted "has feedback" flag exists.
+func (s *Store) OpenCommentCounts() (map[string]int, error) {
+	rows, err := s.db.Query(
+		`SELECT p.slug, COUNT(c.id) FROM pages p
+		 JOIN comments c ON c.page_id = p.id
+		 WHERE c.status = ? GROUP BY p.id`,
+		CommentStatusOpen,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var slug string
+		var n int
+		if err := rows.Scan(&slug, &n); err != nil {
+			return nil, err
+		}
+		out[slug] = n
+	}
+	return out, rows.Err()
+}
+
 // UpdateCommentStatus transitions a comment's lifecycle state
 // (open → in-progress → done). Setting done records resolved_at. Returns the
 // updated view.

@@ -337,6 +337,10 @@ func libraryRows(store *db.Store, filter db.PageFilter, q string) []render.PageR
 	if err != nil {
 		return rows
 	}
+	openBySlug := map[string]int{}
+	if m, merr := store.OpenCommentCounts(); merr == nil {
+		openBySlug = m
+	}
 	for _, p := range pages {
 		wsName := ""
 		if ws, werr := store.GetWorkspace(p.WorkspaceID); werr == nil {
@@ -349,13 +353,14 @@ func libraryRows(store *db.Store, filter db.PageFilter, q string) []render.PageR
 			}
 		}
 		rows = append(rows, render.PageRow{
-			Slug:      p.Slug,
-			Title:     p.Title,
-			Desc:      p.Description,
-			Workspace: wsName,
-			Status:    p.Status,
-			Tags:      tags,
-			Updated:   shortDate(p.UpdatedAt),
+			Slug:         p.Slug,
+			Title:        p.Title,
+			Desc:         p.Description,
+			Workspace:    wsName,
+			Status:       p.Status,
+			Tags:         tags,
+			Updated:      shortDate(p.UpdatedAt),
+			FeedbackOpen: openBySlug[p.Slug],
 		})
 	}
 	return rows
@@ -489,16 +494,22 @@ func handlePageView(store *db.Store, dataDir string) http.HandlerFunc {
 			}
 		}
 
+		openBySlug := map[string]int{}
+		if m, merr := store.OpenCommentCounts(); merr == nil {
+			openBySlug = m
+		}
+
 		data := render.PageViewData{
-			Slug:      page.Slug,
-			Title:     page.Title,
-			Status:    page.Status,
-			Workspace: wsName,
-			Tags:      tags,
-			RawURL:    "/page/" + page.Slug + "/raw",
-			BackURL:   "/" + filterQueryString(filter, q),
-			PrevURL:   prevURL,
-			NextURL:   nextURL,
+			Slug:         page.Slug,
+			Title:        page.Title,
+			Status:       page.Status,
+			Workspace:    wsName,
+			Tags:         tags,
+			RawURL:       "/page/" + page.Slug + "/raw",
+			BackURL:      "/" + filterQueryString(filter, q),
+			PrevURL:      prevURL,
+			NextURL:      nextURL,
+			FeedbackOpen: openBySlug[page.Slug],
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte(render.PageView(data)))

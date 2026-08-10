@@ -259,7 +259,9 @@ func libraryScript(data LibraryData) string {
 
   function rowHTML(r){
     return '<a class="row" href="/page/'+esc(r.slug)+(qs()?'?'+esc(qs()):'')+'">'
-      +'<div class="grow"><div class="t"><span class="name">'+esc(r.title)+'</span></div>'
+      +'<div class="grow"><div class="t"><span class="name">'+esc(r.title)+'</span>'
+      +(r.feedbackOpen>0?'<span class="fb"><i></i>'+r.feedbackOpen+' open</span>':'')
+      +'</div>'
       +(r.desc?'<div class="desc">'+esc(r.desc)+'</div>':'')
       +'<div class="meta"><span class="tag">'+esc(r.workspace)+'</span>'
       +(r.tags||[]).map(function(t){return '<span class="tag">'+esc(t)+'</span>';}).join('')
