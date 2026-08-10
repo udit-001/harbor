@@ -64,12 +64,15 @@ layout, a dead-end mockup) → skip harbor; don't pollute the library.
 ## Responding to feedback
 
 Humans leave anchored comments on your pages; you answer them by editing the
-page. The dashboard surfaces open comments (default queue): `harbor comments list`
-read the newest with `harbor comments watch`.
+page. Pull the open queue with `harbor comments list` (defaults to open; each
+row shows `page / quote / body`). Do that once, handle every comment, then
+re-list to confirm the queue is empty. Never run a blocking tail (`harbor
+comments watch` blocks until Ctrl-C) as an agent step — snapshot with `list`
+instead.
 
 For each open comment, in order:
 
-1. **Read it** — `harbor comments list` (defaults to open) shows
+1. **Read it** — the `harbor comments list` row shows
    `page / quote / body` so you know exactly what to change.
 2. **Edit the page** to address it.
 3. **Mark the changed element** with a stable id on the element you edited:
@@ -78,6 +81,9 @@ For each open comment, in order:
    `harbor change add <slug> --change-id <id> --title "what I changed" \
    --description "why" [--comment <commentId>]`
 5. **Close the comment** once addressed: `harbor comments update <commentId> --status done`.
+
+Repeat until re-running `harbor comments list` returns no open comments — that
+queue-empty check is when the work is done.
 
 The change's `--title`/`--description` is what the walkthrough shows — write it
 for someone who hasn't seen the diff. `--description` optional; `--title` is
