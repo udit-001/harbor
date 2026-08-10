@@ -168,7 +168,7 @@ func commentPanelMarkup() string {
       </select>
     </div>
     <div class="cp-fields">
-      <div class="cp-anchor"><span class="cp-label">Where</span><code id="cpAnchor">whole page</code></div>
+      <div class="cp-anchor"><span class="cp-label">Where</span><code id="cpAnchor">whole page</code><button type="button" class="cp-clear" id="cpClear" hidden aria-label="Clear selection" title="Clear">` + iconClear() + `</button></div>
       <div class="cp-quote" id="cpQuoteWrap" hidden><span class="cp-label">Quote</span><blockquote id="cpQuote"></blockquote></div>
     </div>
     <form id="commentForm" class="cp-form">
@@ -187,6 +187,9 @@ func commentPanelMarkup() string {
 
 func iconClose() string {
 	return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>`
+}
+func iconClear() string {
+	return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>`
 }
 
 // commentPanelScript wires the comment panel: open/close with focus management,
@@ -212,6 +215,7 @@ func commentPanelScript(slug string) string {
   const errEl=document.getElementById('cpError');
   const listEl=document.getElementById('cpList');
   const listHeadEl=document.getElementById('cpListHead');
+  const clearBtn=document.getElementById('cpClear');
   const LIST_URL='/api/pages/'+encodeURIComponent(slug)+'/comments';
 
   let open=false;
@@ -220,27 +224,45 @@ func commentPanelScript(slug string) string {
   // state: what the comment is anchored to (captured from the iframe).
   let state={type:'general',anchor:'',quote:''};
 
+  // Reset the compose area to a neutral whole-page draft. Called on Clear,
+  // on submit, and when the panel closes so reopening always starts fresh.
+  function resetCompose(){
+    state={type:'general',anchor:'',quote:''};
+    body.value='';
+    typeSel.value='general';
+    picking=false;
+    pickBtn.classList.remove('active');
+    pickBtn.setAttribute('aria-pressed','false');
+    errEl.classList.remove('show');
+    renderState();
+  }
   function setOpen(v){
     open=v;
     panel.classList.toggle('open',v);
     panel.setAttribute('aria-hidden',String(!v));
     btn.setAttribute('aria-expanded',String(v));
     if(v){ showHeader(); body.focus(); loadList(); }
-    else if(document.activeElement&&document.activeElement.closest('#commentPanel')) btn.focus();
+    else {
+      if(document.activeElement&&document.activeElement.closest('#commentPanel')) btn.focus();
+      resetCompose();
+    }
   }
   function showHeader(){ const pv=document.getElementById('pv'); pv&&pv.classList.add('is-visible'); }
   btn.addEventListener('click',()=>setOpen(!open));
   close.addEventListener('click',()=>setOpen(false));
   document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'&&open) setOpen(false); });
 
-  // Update the preview UI from state.
+  // Update the preview UI from state. The Clear affordance is offered only
+  // while a selection/element target is captured (anchor is set).
   function renderState(){
     typeSel.value=state.type;
     anchorEl.textContent=state.anchor||'whole page';
     if(state.quote){ quoteWrap.hidden=false; quoteEl.textContent=state.quote; }
     else quoteWrap.hidden=true;
+    clearBtn.hidden=(state.anchor==='');
   }
   typeSel.addEventListener('change',()=>{ state.type=typeSel.value; });
+  clearBtn.addEventListener('click',resetCompose);
 
   function cssPath(el){
     if(!el||el.nodeType!==1) return '';
@@ -304,7 +326,7 @@ func commentPanelScript(slug string) string {
     fetch(LIST_URL,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({type:state.type,anchor:state.anchor,quote:state.quote,body:text})})
       .then(r=>{ if(!r.ok) return r.json().then(j=>Promise.reject(j&&j.error)).catch(()=>Promise.reject('could not save comment ('+r.status+')')); return r.json(); })
-      .then(()=>{ body.value=''; state={type:'general',anchor:'',quote:''}; typeSel.value='general'; renderState(); loadList(); })
+      .then(()=>{ resetCompose(); loadList(); })
       .catch(m=>{ errEl.textContent=m; errEl.classList.add('show'); })
       .finally(()=>{ submit.disabled=false; });
   });
@@ -405,9 +427,14 @@ padding:7px 11px;font:500 12.5px var(--font);cursor:pointer}
 border-radius:var(--rs);padding:7px 9px;font:400 13px var(--font)}
 .cp-fields{display:flex;flex-direction:column;gap:12px;padding-top:2px;margin-top:14px}
 .cp-label{font:500 11px var(--font);color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
-.cp-anchor{display:flex;align-items:baseline;gap:10px}
+.cp-anchor{display:flex;align-items:center;gap:10px}
 .cp-anchor code{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--acc);
-background:var(--acc-soft);border-radius:4px;padding:1px 6px;overflow-wrap:anywhere}
+background:var(--acc-soft);border-radius:4px;padding:2px 6px;overflow-wrap:anywhere;flex:0 1 auto}
+.cp-clear{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:var(--rs);
+width:32px;height:32px;display:grid;place-items:center;cursor:pointer;margin-left:auto;flex:none;
+transition:color .1s,background-color .1s,border-color .1s}
+.cp-clear:hover{color:var(--strong);background:var(--surface2);border-color:var(--text)}
+.cp-clear[hidden]{display:none}
 .cp-quote{display:flex;flex-direction:column;gap:6px;color:var(--text);margin-top:8px}
 .cp-quote[hidden]{display:none}
 .cp-quote blockquote{margin:0;font-size:12.5px;font-style:italic;color:var(--muted);line-height:1.6;
