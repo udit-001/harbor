@@ -10,13 +10,13 @@ import (
 // Store seam directly; workspace-scoped helpers are not required because a
 // page already carries workspace_id.
 
-const pageColumns = `id, slug, workspace_id, title, description, context, status, origin_path, created_at, updated_at`
+const pageColumns = `id, slug, workspace_id, title, description, context, status, origin_path, COALESCE(body_text, ''), created_at, updated_at`
 
 func scanPage(row interface{ Scan(...any) error }) (Page, error) {
 	var p Page
 	err := row.Scan(
 		&p.ID, &p.Slug, &p.WorkspaceID, &p.Title, &p.Description, &p.Context,
-		&p.Status, &p.OriginPath, &p.CreatedAt, &p.UpdatedAt,
+		&p.Status, &p.OriginPath, &p.BodyText, &p.CreatedAt, &p.UpdatedAt,
 	)
 	return p, err
 }
@@ -53,7 +53,7 @@ type PageFilter struct {
 // is required and drives the stable slug (derived once via Slugify). The listed
 // tag names are attached; each must already exist as a Tag (create-first rule,
 // mirroring scraps). Returns the created page by slug.
-func (s *Store) CreatePage(workspaceID int64, title, description, context, status, originPath string, tagNames []string) (Page, error) {
+func (s *Store) CreatePage(workspaceID int64, title, description, context, status, originPath, bodyText string, tagNames []string) (Page, error) {
 	slug := Slugify(title)
 	if slug == "" {
 		return Page{}, fmt.Errorf("page title must produce a slug")
@@ -64,9 +64,9 @@ func (s *Store) CreatePage(workspaceID int64, title, description, context, statu
 	}
 
 	res, err := s.db.Exec(
-		`INSERT INTO pages (slug, workspace_id, title, description, context, status, origin_path)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		slug, workspaceID, title, description, context, status, originPath,
+		`INSERT INTO pages (slug, workspace_id, title, description, context, status, origin_path, body_text)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+		slug, workspaceID, title, description, context, status, originPath, bodyText,
 	)
 	if err != nil {
 		return Page{}, fmt.Errorf("insert page: %w", err)
@@ -132,7 +132,7 @@ func (s *Store) ListPages(filter PageFilter) ([]Page, error) {
 // "unchanged"; status (when non-nil) must be a valid status; tags (when non-nil)
 // replaces the full tag set. The slug never changes (stable find-then-update
 // handle); a changed title does not regenerate it.
-func (s *Store) UpdatePage(slug string, title, description, context, status, originPath *string, tags *[]string) (Page, error) {
+func (s *Store) UpdatePage(slug string, title, description, context, status, originPath, bodyText *string, tags *[]string) (Page, error) {
 	current, err := s.PageBySlug(slug)
 	if err != nil {
 		return Page{}, err
@@ -161,11 +161,15 @@ func (s *Store) UpdatePage(slug string, title, description, context, status, ori
 	if originPath != nil {
 		newOrigin = *originPath
 	}
+	newBody := current.BodyText
+	if bodyText != nil {
+		newBody = *bodyText
+	}
 
 	_, err = s.db.Exec(
-		`UPDATE pages SET title = ?, description = ?, context = ?, status = ?, origin_path = ?, updated_at = ?
+		`UPDATE pages SET title = ?, description = ?, context = ?, status = ?, origin_path = ?, body_text = ?, updated_at = ?
 		 WHERE id = ?`,
-		newTitle, newDesc, newCtx, newStatus, newOrigin, nowTimestamp(), current.ID,
+		newTitle, newDesc, newCtx, newStatus, newOrigin, newBody, nowTimestamp(), current.ID,
 	)
 	if err != nil {
 		return Page{}, fmt.Errorf("update page %q: %w", slug, err)
@@ -234,4 +238,53 @@ func (s *Store) TagsForPage(slug string) ([]Tag, error) {
 	}
 	defer rows.Close()
 	return scanTags(rows)
+}
+
+// SearchPages performs full-text search across page title, description,
+// context, body text, plus the descriptions of attached tags, narrowed by the
+// same filters as ListPages. A page surfaces if it matches its own text OR any
+// attached tag's name/description.
+func (s *Store) SearchPages(query string, filter PageFilter) ([]Page, error) {
+	q := buildFTSQuery(query)
+	if q == "" {
+		return []Page{}, nil
+	}
+
+	titleBody := "SELECT rowid FROM pages_fts WHERE pages_fts MATCH ?"
+
+	tagLike, likeArgs := ftsTermsLike(query)
+	tagIdsSQL := fmt.Sprintf(
+		"SELECT DISTINCT pt.page_id FROM page_tags pt JOIN tags t ON t.id = pt.tag_id WHERE %s",
+		tagLike,
+	)
+
+	args := []any{q}
+	args = append(args, likeArgs...)
+
+	where := []string{"(id IN (%s) OR id IN (%s))"}
+
+	if filter.Status != "" {
+		where = append(where, "status = ?")
+		args = append(args, filter.Status)
+	}
+	if filter.WorkspaceSlug != "" {
+		where = append(where, "workspace_id IN (SELECT id FROM workspaces WHERE name = ?)")
+		args = append(args, filter.WorkspaceSlug)
+	}
+	if filter.TagName != "" {
+		where = append(where, "id IN (SELECT pt.page_id FROM page_tags pt JOIN tags t ON t.id = pt.tag_id WHERE t.name = ?)")
+		args = append(args, filter.TagName)
+	}
+
+	combined := fmt.Sprintf(
+		"SELECT %s FROM pages WHERE %s ORDER BY updated_at DESC",
+		pageColumns,
+		fmt.Sprintf(strings.Join(where, " AND "), titleBody, tagIdsSQL),
+	)
+	rows, err := s.db.Query(combined, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanPages(rows)
 }

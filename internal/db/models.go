@@ -35,6 +35,7 @@ type Page struct {
 	Context     string `db:"context" json:"context"`
 	Status      string `db:"status" json:"status"`
 	OriginPath  string `db:"origin_path" json:"originPath"`
+	BodyText    string `db:"body_text" json:"bodyText"`
 	CreatedAt   string `db:"created_at" json:"createdAt"`
 	UpdatedAt   string `db:"updated_at" json:"updatedAt"`
 }
