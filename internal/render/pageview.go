@@ -286,6 +286,9 @@ func commentPanelScript(slug string) string {
   function wire(){
     try{ doc=frame.contentDocument; }catch(_){ doc=null; return; }
     if(!doc) return;
+    // Forward Escape from inside the page: focus lives in the iframe after a
+    // selection/pick, and its keydown never reaches the shell document.
+    doc.addEventListener('keydown',(ev)=>{ if(ev.key==='Escape'&&open) setOpen(false); },true);
     doc.addEventListener('mouseup',(ev)=>{
       const win=frame.contentWindow, sel=win&&win.getSelection();
       const text=sel?sel.toString().trim():'';
