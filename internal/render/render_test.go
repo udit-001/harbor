@@ -5,6 +5,29 @@ import (
 	"testing"
 )
 
+// TestPageViewHasCommentPanel: the comment affordance lives in the shell — a
+// header button + a right-hand panel — and never in the agent's page. The
+// shell posts through the JSON API; the iframe is untouched.
+func TestPageViewHasCommentPanel(t *testing.T) {
+	out := PageView(PageViewData{Slug: "x", Title: "X", RawURL: "/page/x/raw", BackURL: "/"})
+	for _, want := range []string{
+		`id="commentBtn"`, `aria-expanded="false"`,
+		`id="commentPanel"`, `role="dialog"`, `aria-modal="true"`,
+		`id="commentClose"`, `id="cpBody"`, `id="cpType"`, `id="cpPick"`, `id="cpList"`,
+		"Pick element", "Post comment",
+		`encodeURIComponent(slug)`, // the JSON API path the shell targets at runtime
+		"No comments yet",          // empty list state rendered by the shell
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("page view missing %q", want)
+		}
+	}
+	// The panel must not inject anything into the raw page iframe src.
+	if !strings.Contains(out, "/page/x/raw") {
+		t.Errorf("raw iframe src missing")
+	}
+}
+
 // TestDashboardRendersStatsAndWorkspaces proves the render module's output is
 // a pure function of its view model — the seam created in LEARN-10.
 func TestDashboardRendersStatsAndWorkspaces(t *testing.T) {

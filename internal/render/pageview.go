@@ -1,6 +1,7 @@
 package render
 
 import (
+	"encoding/json"
 	"strings"
 )
 
@@ -33,7 +34,9 @@ func PageView(d PageViewData) string {
 	b.WriteString(`</head><body data-slug="` + e(d.Slug) + `">`)
 	b.WriteString(pageViewHeader(d))
 	b.WriteString(`<div class="wrap"><iframe id="frame" src="` + e(d.RawURL) + `" title="` + esc(d.Title) + `"></iframe></div>`)
+	b.WriteString(commentPanelMarkup())
 	b.WriteString(pageViewScript(d))
+	b.WriteString(commentPanelScript(d.Slug))
 	if d.Workspace != "" {
 		// Live-sync: reload this page's iframe (preserving scroll) when its
 		// content changes, and follow agent-driven navigation.
@@ -74,6 +77,7 @@ func pageViewHeader(d PageViewData) string {
 	} else {
 		b.WriteString(`<span class="icon-btn disabled" title="No next">` + iconNext() + `</span>`)
 	}
+	b.WriteString(`<button class="icon-btn" id="commentBtn" aria-haspopup="dialog" aria-expanded="false" aria-label="Comments" title="Comments">` + iconComment() + `</button>`)
 	b.WriteString(`<button class="icon-btn" id="modeBtn" title="Toggle full / container" aria-label="Toggle view mode">` + iconExpand() + `</button>`)
 	b.WriteString(`<a class="icon-btn" href="` + e(d.RawURL) + `" target="_blank" rel="noopener" title="Pop out" aria-label="Pop out">` + iconPopOut() + `</a>`)
 	b.WriteString(`</div></div>`)
@@ -138,6 +142,192 @@ func iconExpand() string {
 func iconPopOut() string {
 	return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><path d="M15 3h6v6M10 14 21 3"/></svg>`
 }
+func iconComment() string {
+	return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`
+}
+
+// commentPanelMarkup is the shell-side comment panel: a right-hand drawer where
+// the human composes anchored feedback about the page. It lives entirely in the
+// shell — the agent's HTML (in the iframe) is never injected into. Type/anchor/
+// quote are captured client-side from the same-origin iframe and submitted via
+// the JSON API; the page file itself is never touched.
+func commentPanelMarkup() string {
+	return `<div class="comment-panel" id="commentPanel" role="dialog" aria-modal="true" aria-labelledby="commentPanelTitle" aria-hidden="true">
+  <div class="cp-head">
+    <span class="cp-title" id="commentPanelTitle">Comment</span>
+    <button class="icon-btn cp-close" id="commentClose" aria-label="Close comments" title="Close">` + iconClose() + `</button>
+  </div>
+  <div class="cp-body">
+    <div class="cp-capture" id="cpCapture">Select text in the page to quote it, or pick an element to anchor your comment to.</div>
+    <div class="cp-row">
+      <button type="button" class="cp-pick" id="cpPick" aria-pressed="false">Pick element</button>
+      <select id="cpType" aria-label="Comment type">
+        <option value="general">Whole page</option>
+        <option value="selection">Text selection</option>
+        <option value="element">Element</option>
+      </select>
+    </div>
+    <div class="cp-fields">
+      <div class="cp-anchor"><span class="cp-label">Where</span><code id="cpAnchor">whole page</code></div>
+      <div class="cp-quote" id="cpQuoteWrap" hidden><span class="cp-label">Quote</span><blockquote id="cpQuote"></blockquote></div>
+    </div>
+    <form id="commentForm" class="cp-form">
+      <label class="cp-label" for="cpBody">Your feedback</label>
+      <textarea id="cpBody" rows="4" required placeholder="Tell the agent what to change…"></textarea>
+      <div class="cp-error" id="cpError" role="alert"></div>
+      <div class="cp-actions">
+        <button type="submit" id="cpSubmit" class="cp-submit">Post comment</button>
+      </div>
+    </form>
+    <div class="cp-list-head">Comments</div>
+    <ol class="cp-list" id="cpList" aria-live="polite"></ol>
+  </div>
+</div>`
+}
+
+func iconClose() string {
+	return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>`
+}
+
+// commentPanelScript wires the comment panel: open/close with focus management,
+// same-origin capture of text selections and element picks inside the iframe,
+// POSTing submitted comments, and listing the page's existing comments. All
+// feedback flows through the shell + JSON API — nothing is injected into the
+// agent's page.
+func commentPanelScript(slug string) string {
+	slugLit, _ := json.Marshal(slug) // a JSON string literal == a valid JS string literal
+	return `<script>(function(){
+  const slug=` + string(slugLit) + `;
+  const frame=document.getElementById('frame');
+  const panel=document.getElementById('commentPanel');
+  const btn=document.getElementById('commentBtn');
+  const close=document.getElementById('commentClose');
+  const form=document.getElementById('commentForm');
+  const body=document.getElementById('cpBody');
+  const typeSel=document.getElementById('cpType');
+  const pickBtn=document.getElementById('cpPick');
+  const anchorEl=document.getElementById('cpAnchor');
+  const quoteWrap=document.getElementById('cpQuoteWrap');
+  const quoteEl=document.getElementById('cpQuote');
+  const errEl=document.getElementById('cpError');
+  const listEl=document.getElementById('cpList');
+  const LIST_URL='/api/pages/'+encodeURIComponent(slug)+'/comments';
+
+  let open=false;
+  let picking=false;
+  let doc=null;
+  // state: what the comment is anchored to (captured from the iframe).
+  let state={type:'general',anchor:'',quote:''};
+
+  function setOpen(v){
+    open=v;
+    panel.classList.toggle('open',v);
+    panel.setAttribute('aria-hidden',String(!v));
+    btn.setAttribute('aria-expanded',String(v));
+    if(v){ showHeader(); body.focus(); loadList(); }
+    else if(document.activeElement&&document.activeElement.closest('#commentPanel')) btn.focus();
+  }
+  function showHeader(){ const pv=document.getElementById('pv'); pv&&pv.classList.add('is-visible'); }
+  btn.addEventListener('click',()=>setOpen(!open));
+  close.addEventListener('click',()=>setOpen(false));
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'&&open) setOpen(false); });
+
+  // Update the preview UI from state.
+  function renderState(){
+    typeSel.value=state.type;
+    anchorEl.textContent=state.anchor||'whole page';
+    if(state.quote){ quoteWrap.hidden=false; quoteEl.textContent=state.quote; }
+    else quoteWrap.hidden=true;
+  }
+  typeSel.addEventListener('change',()=>{ state.type=typeSel.value; });
+
+  function cssPath(el){
+    if(!el||el.nodeType!==1) return '';
+    if(el.id) return '#'+CSS.escape(el.id);
+    const parts=[]; let n=el;
+    while(n&&n.nodeType===1&&n!==doc.body){
+      if(n.id){ parts.unshift('#'+CSS.escape(n.id)); break; }
+      let sel=n.tagName.toLowerCase();
+      const parent=n.parentElement;
+      if(parent){
+        const same=[].filter.call(parent.children,ch=>ch.tagName===n.tagName);
+        if(same.length>1) sel+=':nth-of-type('+(same.indexOf(n)+1)+')';
+      }
+      parts.unshift(sel); n=parent;
+    }
+    return parts.join(' > ');
+  }
+
+  // Same-origin: reach into the iframe document to capture selections and clicks.
+  function wire(){
+    try{ doc=frame.contentDocument; }catch(_){ doc=null; return; }
+    if(!doc) return;
+    doc.addEventListener('mouseup',(ev)=>{
+      const win=frame.contentWindow, sel=win&&win.getSelection();
+      const text=sel?sel.toString().trim():'';
+      // The anchor of a text selection is usually a text node (use its
+      // parent), but for an element selection it is the element itself.
+      const an=(sel&&sel.anchorNode)||null;
+      const el=an?(an.nodeType===1?an:an.parentElement):null;
+      if(text){
+        state={type:'selection',anchor:cssPath(el),quote:text};
+        renderState(); setOpen(true);
+      }
+    },true);
+    doc.addEventListener('click',(ev)=>{
+      if(!picking) return;
+      picking=false; pickBtn.classList.remove('active'); pickBtn.setAttribute('aria-pressed','false');
+      errEl.classList.remove('show');
+      state={type:'element',anchor:cssPath(ev.target),quote:''};
+      renderState(); setOpen(true);
+    },true);
+  }
+  frame.addEventListener('load',wire);
+  wire();
+  pickBtn.addEventListener('click',()=>{
+    picking=!picking;
+    pickBtn.classList.toggle('active',picking);
+    pickBtn.setAttribute('aria-pressed',String(picking));
+    if(picking){ errEl.textContent='Click an element in the page to anchor to it.'; errEl.classList.add('show'); }
+    else errEl.classList.remove('show');
+  });
+
+  // Submit the pending comment.
+  form.addEventListener('submit',(e)=>{
+    e.preventDefault();
+    const text=body.value.trim();
+    if(!text) return;
+    errEl.classList.remove('show');
+    const submit=document.getElementById('cpSubmit');
+    submit.disabled=true;
+    fetch(LIST_URL,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type:state.type,anchor:state.anchor,quote:state.quote,body:text})})
+      .then(r=>{ if(!r.ok) return r.json().then(j=>Promise.reject(j&&j.error)).catch(()=>Promise.reject('could not save comment ('+r.status+')')); return r.json(); })
+      .then(()=>{ body.value=''; state={type:'general',anchor:'',quote:''}; typeSel.value='general'; renderState(); loadList(); })
+      .catch(m=>{ errEl.textContent=m; errEl.classList.add('show'); })
+      .finally(()=>{ submit.disabled=false; });
+  });
+
+  // List existing comments for the page.
+  function escHTML(s){ return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  function loadList(){
+    fetch(LIST_URL).then(r=>r.json()).then(items=>{
+      listEl.innerHTML='';
+      if(!items.length){ listEl.innerHTML='<li class="cp-empty">No comments yet.</li>'; return; }
+      for(const c of items){
+        const li=document.createElement('li');
+        li.className='cp-item';
+        const head=document.createElement('div'); head.className='cp-item-head';
+        head.innerHTML='<span class="cp-item-type">'+escHTML(c.type)+'</span><span class="cp-item-status'+(c.status==='done'?' done':'')+'">'+escHTML(c.status)+'</span>';
+        const b=document.createElement('div'); b.className='cp-item-body'; b.textContent=c.body;
+        li.appendChild(head); li.appendChild(b);
+        if(c.quote){ const q=document.createElement('div'); q.className='cp-item-quote'; q.textContent=c.quote; li.appendChild(q); }
+        listEl.appendChild(li);
+      }
+    }).catch(()=>{});
+  }
+})();</script>`
+}
 
 func pageViewCSS() string {
 	return `<style>
@@ -190,5 +380,61 @@ body.full .pv.is-visible{transform:translateY(0);opacity:1;pointer-events:auto}
 .wrap,#frame{transition:none}
 body.full .pv{transition:opacity .2s ease;transform:none}
 }
+/* ── Comment panel ── */
+.comment-panel{position:fixed;top:0;right:0;bottom:0;width:340px;max-width:92vw;z-index:40;
+display:flex;flex-direction:column;background:var(--surface);border-left:1px solid var(--border);
+box-shadow:-8px 0 24px rgba(0,0,0,.10);
+transform:translateX(100%);opacity:0;pointer-events:none;
+transition:transform .28s var(--ease),opacity .28s var(--ease)}
+.comment-panel.open{transform:translateX(0);opacity:1;pointer-events:auto}
+.cp-head{display:flex;align-items:center;gap:8px;padding:12px 14px;border-bottom:1px solid var(--border)}
+.cp-title{font-weight:600;color:var(--strong);font-size:13px;letter-spacing:.02em}
+.cp-close{margin-left:auto}
+.cp-body{flex:1;min-height:0;overflow-y:auto;padding:14px}
+.cp-form{display:flex;flex-direction:column;gap:10px}
+.cp-capture{font-size:12px;color:var(--muted);line-height:1.5;background:var(--surface2);
+border:1px dashed var(--border);border-radius:var(--rs);padding:8px 10px}
+.cp-row{display:flex;align-items:center;gap:8px}
+.cp-pick{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:var(--rs);
+padding:5px 9px;font:500 12px var(--font);cursor:pointer}
+.cp-pick:hover{background:var(--surface2)}
+.cp-pick.active{color:var(--acc);border-color:var(--acc);background:var(--acc-soft)}
+.cp-row select{flex:1;border:1px solid var(--border);background:var(--surface);color:var(--text);
+border-radius:var(--rs);padding:5px 7px;font:400 12.5px var(--font)}
+.cp-fields{display:flex;flex-direction:column;gap:8px}
+.cp-label{font:500 11px var(--font);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.cp-anchor{display:flex;align-items:baseline;gap:8px}
+.cp-anchor code{font:11px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--acc);
+background:var(--acc-soft);border-radius:4px;padding:1px 6px;overflow-wrap:anywhere}
+.cp-quote{display:flex;flex-direction:column;gap:4px;color:var(--text)}
+.cp-quote blockquote{margin:0;font-size:12.5px;font-style:italic;color:var(--muted);
+border-left:3px solid var(--border);padding:0 0 0 8px}
+.cp-body textarea{width:100%;min-height:84px;resize:vertical;border:1px solid var(--border);
+border-radius:var(--rs);background:var(--surface);color:var(--text);padding:8px 10px;
+font:400 13px var(--font);line-height:1.5}
+.cp-body textarea:focus-visible,.cp-pick:focus-visible,.cp-close:focus-visible,.cp-submit:focus-visible,
+.cp-row select:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.cp-actions{display:flex;justify-content:flex-end}
+.cp-submit{border:0;border-radius:var(--rs);background:var(--acc);color:#fff;padding:8px 16px;
+font:600 13px var(--font);cursor:pointer}
+.cp-submit:hover{filter:brightness(.96)}
+.cp-submit:disabled{opacity:.5;cursor:not-allowed}
+.cp-error{display:none;font-size:12.5px;color:var(--warn);background:var(--warn-soft);border-radius:var(--rs);padding:7px 10px}
+.cp-error.show{display:block}
+.cp-list-head{margin:16px 0 8px;font:600 12px var(--font);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
+.cp-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.cp-item{border:1px solid var(--border);border-radius:var(--rs);padding:9px 11px;background:var(--surface2)}
+.cp-item-head{display:flex;align-items:center;gap:6px;margin-bottom:5px}
+.cp-item-type{font:600 10px var(--font);color:var(--acc);background:var(--acc-soft);border-radius:4px;padding:1px 5px;text-transform:uppercase}
+.cp-item-status{font:500 10px var(--font);color:var(--muted)}
+.cp-item-status.done{color:var(--ok)}
+.cp-item-body{font-size:12.5px;color:var(--text);line-height:1.5}
+.cp-item-quote{font-size:12px;font-style:italic;color:var(--muted);border-left:2px solid var(--border);padding:0 0 0 7px;margin-top:5px}
+.cp-empty{font-size:12.5px;color:var(--muted)}
+@media(prefers-reduced-motion:reduce){
+.comment-panel{transition:opacity .18s ease;transform:none}
+.comment-panel.open{transform:none}
+}
+@media(max-width:680px){.comment-panel{width:100%;max-width:100vw}}
 </style>`
 }

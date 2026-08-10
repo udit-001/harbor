@@ -96,6 +96,8 @@ func NewMux(store *db.Store, dataDir string, devCSS bool) *http.ServeMux {
 	mux.HandleFunc("GET /api/stats", jsonHandler(handleStats(store)))
 	mux.HandleFunc("GET /api/search", jsonHandler(handleSearch(store)))
 	mux.HandleFunc("GET /api/pages", jsonHandler(handlePagesJSON(store)))
+	mux.HandleFunc("GET /api/pages/{slug}/comments", jsonHandler(handleListPageComments(store)))
+	mux.HandleFunc("POST /api/pages/{slug}/comments", jsonHandler(handleCreatePageComment(store)))
 
 	// App pages
 	mux.HandleFunc("GET /", handleAppShell(store))
@@ -257,6 +259,57 @@ func handlePagesJSON(store *db.Store) http.HandlerFunc {
 			rows = []render.PageRow{}
 		}
 		jsonResponse(w, rows)
+	}
+}
+
+// handleListPageComments serves the full comment thread for a page (oldest
+// first). The shell's comment panel fetches this when it opens.
+func handleListPageComments(store *db.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		slug := r.PathValue("slug")
+		if _, err := store.PageBySlug(slug); err != nil {
+			jsonError(w, "page not found", http.StatusNotFound)
+			return
+		}
+		comments, err := store.ListComments(db.CommentFilter{PageSlug: slug})
+		if err != nil {
+			jsonError(w, "failed to load comments", http.StatusInternalServerError)
+			return
+		}
+		if comments == nil {
+			comments = []db.CommentView{}
+		}
+		jsonResponse(w, comments)
+	}
+}
+
+// handleCreatePageComment writes a new comment to the DB for a page. The page
+// file is never touched — the anchor/quote/type describe the human's selection
+// into an already-served document.
+func handleCreatePageComment(store *db.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		slug := r.PathValue("slug")
+		var body struct {
+			Type   string `json:"type"`
+			Anchor string `json:"anchor"`
+			Quote  string `json:"quote"`
+			Body   string `json:"body"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			jsonError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		created, err := store.CreateComment(slug, body.Anchor, body.Quote, body.Type, body.Body)
+		if err != nil {
+			if _, perr := store.PageBySlug(slug); perr != nil {
+				jsonError(w, "page not found", http.StatusNotFound)
+				return
+			}
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusCreated)
+		jsonResponse(w, created)
 	}
 }
 
