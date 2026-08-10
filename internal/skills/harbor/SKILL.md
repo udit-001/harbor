@@ -1,6 +1,6 @@
 ---
 name: harbor
-description: Use harbor when a human asks you to save, organize, find, or review HTML pages an agent builds — keep a standalone HTML artifact for a human to view (harbor page add), group pages into or pull them out of a workspace (harbor workspace), tag pages (harbor tag), search the library (harbor search, page list/read), or run the dashboard (harbor start / stop). Use it too when asked to install, uninstall, or improve this skill (harbor skills).
+description: Use harbor when a human asks you to save, organize, find, or review HTML pages an agent builds — keep a standalone HTML artifact for a human to view (harbor page add), group pages into or pull them out of a workspace (harbor workspace), tag pages (harbor tag), search the library (harbor search, page list/read), or run the dashboard (harbor start / stop).
 ---
 
 # Harbor
