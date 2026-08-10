@@ -109,3 +109,32 @@ func TestPageAddImportRoundTrip(t *testing.T) {
 		t.Fatalf("delete missing confirmation:\n%s", del)
 	}
 }
+
+func TestSearchCommandAndRebuild(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	store, cleanup := newTestStore(t)
+	defer cleanup()
+
+	if _, err := store.CreateWorkspace("ws", "ws", "the work", filepath.Join(home, "wsdir")); err != nil {
+		t.Fatalf("seed workspace: %v", err)
+	}
+
+	src := writeBodyFile(t, "<html><body><p>the quarterly revenue hero insights</p></body></html>")
+	_ = runWithStore(t, []string{"page", "add", src, "--workspace", "ws",
+		"--title", "Revenue Deep Dive", "--description", "revenue analysis", "--context", "built for board review"}, store)
+
+	// Search matches body text and title/description.
+	for _, q := range []string{"quarterly revenue hero", "deep dive", "revenue analysis"} {
+		out := runWithStore(t, []string{"search", q}, store)
+		if !strings.Contains(out, "revenue-deep-dive") {
+			t.Fatalf("search %q missing page:\n%s", q, out)
+		}
+	}
+
+	// Rebuild is idempotent-safe to run (page already has body text).
+	rebuild := runWithStore(t, []string{"search", "--rebuild-index"}, store)
+	if !strings.Contains(rebuild, "Reindexed") {
+		t.Fatalf("rebuild missing summary:\n%s", rebuild)
+	}
+}

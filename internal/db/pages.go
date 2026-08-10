@@ -208,6 +208,25 @@ func (s *Store) PageCountForWorkspace(workspaceSlug string) (int, error) {
 	return count, err
 }
 
+// PagesNeedingReindex returns pages whose body_text is empty — the ones the
+// FTS index is missing body coverage for. Indexing is idempotent: rebuild
+// harvests only these, so already-indexed pages are left untouched.
+func (s *Store) PagesNeedingReindex() ([]Page, error) {
+	rows, err := s.db.Query("SELECT " + pageColumns + " FROM pages WHERE body_text = ''")
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanPages(rows)
+}
+
+// ClearPageBodies empties body_text for every page, forcing a full re-index on
+// the next rebuild. The scoped FTS trigger updates the index accordingly.
+func (s *Store) ClearPageBodies() error {
+	_, err := s.db.Exec("UPDATE pages SET body_text = ''")
+	return err
+}
+
 // setPageTags replaces the tag association set for a page. Each name must
 // already exist as a Tag — the agent creates tags deliberately with a
 // description (create-first rule). Detaching a tag does NOT delete the Tag; it

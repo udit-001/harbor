@@ -140,6 +140,37 @@ func TestPageCreateValidations(t *testing.T) {
 	}
 }
 
+func TestPageReindexHelpers(t *testing.T) {
+	s := newTestStore(t)
+	wsID := seedPageWorkspace(t, s, "ws")
+
+	if _, err := s.CreatePage(wsID, "with-body", "d", "c", "", "", "hello body", nil); err != nil {
+		t.Fatalf("create with-body: %v", err)
+	}
+	if _, err := s.CreatePage(wsID, "empty-body", "d", "c", "", "", "", nil); err != nil {
+		t.Fatalf("create empty-body: %v", err)
+	}
+
+	// Only the empty-bodied page needs reindexing (idempotency: the indexed
+	// page is left alone).
+	needs, err := s.PagesNeedingReindex()
+	if err != nil {
+		t.Fatalf("pages needing reindex: %v", err)
+	}
+	if len(needs) != 1 || needs[0].Slug != "empty-body" {
+		t.Fatalf("needs reindex = %+v, want [empty-body]", needs)
+	}
+
+	// Clearing forces a full re-index (both pages now need it).
+	if err := s.ClearPageBodies(); err != nil {
+		t.Fatalf("clear bodies: %v", err)
+	}
+	needs, _ = s.PagesNeedingReindex()
+	if len(needs) != 2 {
+		t.Fatalf("after clear, needs = %d pages, want 2", len(needs))
+	}
+}
+
 func TestPageWorkspaceCascadeDelete(t *testing.T) {
 	s := newTestStore(t)
 	wsID := seedPageWorkspace(t, s, "work-cascade")
