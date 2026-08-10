@@ -107,8 +107,6 @@ func TestSmokePageRoutes(t *testing.T) {
 		{"dashboard", "/"},
 		{"workspace", "/workspace/alpha"},
 		{"about", "/about"},
-		{"resources", "/workspace/alpha/resources"},
-		{"notes", "/workspace/alpha/notes"},
 	}
 
 	for _, c := range cases {
@@ -253,24 +251,6 @@ func TestPageViewAndRaw(t *testing.T) {
 	}
 	if env.get(t, "/page/nope").Code != 404 {
 		t.Error("missing page view should 404")
-	}
-}
-
-func TestDocPagePlaceholderDetection(t *testing.T) {
-	env := newTestEnv(t)
-
-	// Notes has real content → should render.
-	rec := env.get(t, "/workspace/alpha/notes")
-	body := rec.Body.String()
-	if !strings.Contains(body, "Real notes") {
-		t.Error("notes page should render real content")
-	}
-
-	// Resources has {some placeholder} → should render empty state, not raw template.
-	rec = env.get(t, "/workspace/alpha/resources")
-	body = rec.Body.String()
-	if strings.Contains(body, "{some placeholder}") {
-		t.Error("resources page should not render raw placeholder template content")
 	}
 }
 

@@ -53,7 +53,7 @@ var startFlags struct {
 var startCmd = &cobra.Command{
 	Use:   "start",
 	Short: "Start the web UI dashboard",
-	Long: `Start a local web server with a read-only learning dashboard.
+	Long: `Start a local web server with a read-only dashboard.
 
 If a server is already running, prints its URL and returns.
 Otherwise, starts the server in the background and prints the URL.

@@ -62,10 +62,10 @@ func (s *Store) AddWorkspace(w Workspace) (Workspace, error) {
 }
 
 // CreateWorkspace owns the full workspace lifecycle: it creates the directory
-// tree (root + subdirs), seeds the default files (JS/CSS assets, RESOURCES/
-// NOTES templates), and inserts the row. The "row ⇔ dir tree" invariant lives
-// here — a created workspace always has both. wsPath is supplied by the caller
-// (the CLI knows the data dir / --dir override); the store owns the scaffold.
+// tree (root + subdirs), seeds the default assets (JS/CSS, fonts), and inserts
+// the row. The "row ⇔ dir tree" invariant lives here — a created workspace
+// always has both. wsPath is supplied by the caller (the CLI knows the data
+// dir / --dir override); the store owns the scaffold.
 func (s *Store) CreateWorkspace(name, topic, description, wsPath string) (Workspace, error) {
 	layout := NewLayout(wsPath)
 
@@ -75,11 +75,7 @@ func (s *Store) CreateWorkspace(name, topic, description, wsPath string) (Worksp
 		}
 	}
 
-	displayName := topic
-	if displayName == "" {
-		displayName = name
-	}
-	if err := seedWorkspaceDefaults(layout, displayName); err != nil {
+	if err := seedWorkspaceDefaults(layout); err != nil {
 		return Workspace{}, fmt.Errorf("seed workspace: %w", err)
 	}
 

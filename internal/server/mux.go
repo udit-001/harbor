@@ -12,8 +12,6 @@ import (
 	"time"
 
 	"github.com/udit-001/harbor/internal/db"
-	"github.com/udit-001/harbor/internal/docutil"
-	"github.com/udit-001/harbor/internal/markdown"
 	"github.com/udit-001/harbor/internal/render"
 	"github.com/udit-001/harbor/internal/web"
 )
@@ -104,8 +102,6 @@ func NewMux(store *db.Store, dataDir string, devCSS bool) *http.ServeMux {
 	mux.HandleFunc("GET /page/{slug}", handlePageView(store, dataDir))
 	mux.HandleFunc("GET /page/{slug}/raw", handlePageRaw(store, dataDir))
 	mux.HandleFunc("GET /workspace/{name}", handleWorkspacePage(store))
-	mux.HandleFunc("GET /workspace/{name}/resources", handleDocPage(store, "resources"))
-	mux.HandleFunc("GET /workspace/{name}/notes", handleDocPage(store, "notes"))
 	mux.HandleFunc("GET /about", handleAboutPage(store))
 
 	// Live-sync: CLI mutations broadcast through the broker; the dashboard
@@ -494,52 +490,6 @@ func handleWorkspacePage(store *db.Store) http.HandlerFunc {
 			Workspace: render.Workspace{Name: ws.Name, Topic: ws.Topic},
 		}
 		writePage(w, ws.DisplayName(), name, render.WorkspacePage(data))
-	}
-}
-
-// ── Workspace Document Page (Resources, Notes) ──
-
-// docKind describes one workspace document readable from disk.
-type docKind struct {
-	title string
-	path  func(db.Layout) string
-}
-
-var docKinds = map[string]docKind{
-	"resources": {title: "Resources", path: db.Layout.ResourcesPath},
-	"notes":     {title: "Notes", path: db.Layout.NotesPath},
-}
-
-func handleDocPage(store *db.Store, kind string) http.HandlerFunc {
-	dk, ok := docKinds[kind]
-	if !ok {
-		panic("unknown doc kind: " + kind)
-	}
-	return func(w http.ResponseWriter, r *http.Request) {
-		name := r.PathValue("name")
-		wsStore, err := store.Workspace(name)
-		if err != nil {
-			writeNotFound(w, "Workspace not found", fmt.Sprintf("Workspace %q doesn't exist.", name))
-			return
-		}
-
-		data := render.DocumentData{Title: dk.title, Kind: kind}
-
-		raw, err := os.ReadFile(dk.path(wsStore.Layout()))
-		if err == nil {
-			trimmed := strings.TrimSpace(string(raw))
-			if !docutil.IsTemplate(trimmed, kind) {
-				if body := docutil.StripH1(trimmed); body != "" {
-					data.BodyHTML = markdown.Render(body)
-				}
-			}
-		}
-		wsStore.Touch()
-		if data.BodyHTML == "" {
-			data.Empty = true
-		}
-
-		writePage(w, dk.title, name, render.Document(data))
 	}
 }
 

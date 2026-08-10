@@ -127,7 +127,6 @@ func recallReviewDetail(item ReviewItem) string {
 func QuizReview(d QuizReviewData) string {
 	return renderComponent(quizReview(d))
 }
-func Document(d DocumentData) string        { return renderComponent(documentView(d)) }
 func NotFound(title, message string) string { return renderComponent(notFound(title, message)) }
 
 // workspaceMeta formats the lesson/record/ref/quiz counts for a dashboard card.
@@ -152,83 +151,12 @@ func workspaceMeta(w WorkspaceCard) string {
 	return meta
 }
 
-type glossaryGroup struct {
-	Category string
-	Terms    []GlossaryTermRow
-}
-
-// groupGlossaryTerms groups consecutive terms sharing the same Category,
-// preserving input order. An empty Category renders as "Other".
-func groupGlossaryTerms(terms []GlossaryTermRow) []glossaryGroup {
-	var groups []glossaryGroup
-	for _, t := range terms {
-		if len(groups) > 0 && groups[len(groups)-1].Category == t.Category {
-			groups[len(groups)-1].Terms = append(groups[len(groups)-1].Terms, t)
-		} else {
-			groups = append(groups, glossaryGroup{Category: t.Category, Terms: []GlossaryTermRow{t}})
-		}
-	}
-	return groups
-}
-
-// onboardingBlock renders a guided empty state for a fresh workspace with
-// no lessons or learning records. It tells the learner how harbor is driven:
-// set a mission, install the teach skill, then ask the agent to teach.
-func onboardingBlock(displayName, mission string) string {
-	var missionLine string
-	if mission == "" {
-		missionLine = fmt.Sprintf(`<div class="flex items-center gap-3 py-2">
-			<code class="bg-slate-100 px-2 py-0.5 rounded text-xs text-slate-600 shrink-0">"I want to master %s"</code>
-			<span class="text-sm text-slate-500">Tell your agent what you want to learn</span>
-		</div>`, esc(displayName))
-	}
-
-	return fmt.Sprintf(`<div class="bg-white rounded-lg border border-slate-200 p-6">
-		<div class="flex items-center gap-3 mb-4">
-			<div class="shrink-0 text-slate-400">%s</div>
-			<p class="text-sm font-medium text-slate-600">Ask your AI agent to start teaching.</p>
-		</div>
-		%s
-		<div class="flex items-center gap-3 py-2">
-			<code class="bg-slate-100 px-2 py-0.5 rounded text-xs text-slate-600 shrink-0">"teach me about %s"</code>
-		</div>
-	</div>`, iconCompass(), missionLine, esc(displayName))
-}
-
 // bigIcon returns an svg with its size attributes set to px×px, used for
 // empty-state illustrations where the default 16px is too small.
 func bigIcon(svg string, px int) string {
 	size := strconv.Itoa(px)
 	s := strings.Replace(svg, `width="16" height="16"`, `width="`+size+`" height="`+size+`"`, 1)
 	return strings.Replace(s, `width="20" height="20"`, `width="`+size+`" height="`+size+`"`, 1)
-}
-
-func emptyStateAction(kind string) string {
-	switch kind {
-	case "mission":
-		return `"Set a learning goal for me"`
-	case "resources":
-		return `"Add some reference materials"`
-	case "glossary":
-		return `"Define the key terms"`
-	case "notes":
-		return `"Record my learning preferences"`
-	}
-	return ""
-}
-
-func docHint(kind string) string {
-	switch kind {
-	case "mission":
-		return "Why you're learning this — every lesson should trace back to it"
-	case "resources":
-		return "Curated knowledge sources and communities"
-	case "glossary":
-		return "Key terms for this workspace"
-	case "notes":
-		return "Scratchpad for preferences and working notes"
-	}
-	return ""
 }
 
 // orEmpty returns s if non-empty, otherwise fallback.

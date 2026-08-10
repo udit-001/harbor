@@ -29,16 +29,6 @@ func (l Layout) AssetPath(filename string) string {
 	return filepath.Join(l.Root, "assets", filename)
 }
 
-// ResourcesPath returns the absolute path to RESOURCES.md.
-func (l Layout) ResourcesPath() string {
-	return filepath.Join(l.Root, "RESOURCES.md")
-}
-
-// NotesPath returns the absolute path to NOTES.md.
-func (l Layout) NotesPath() string {
-	return filepath.Join(l.Root, "NOTES.md")
-}
-
 // SafeJoin resolves filename into subdir inside the workspace root, rejecting
 // traversal (.., absolute paths) and the directory itself. It is the single
 // path guard for every user-supplied filename (assets) — one place owns the

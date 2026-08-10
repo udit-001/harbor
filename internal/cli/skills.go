@@ -10,7 +10,7 @@ var skillsCmd = &cobra.Command{
 	Args:  cobra.NoArgs,
 	RunE:  runShowHelp,
 	Long: `Install or uninstall the harbor skill into your AI coding agent so it
-knows how to use the CLI to manage learning workspaces.
+knows how to use the CLI to manage workspaces.
 
 Installs to the Agent Skills Open Standard locations:
   ~/.agents/skills/  (global, read by opencode, codex, pi.dev)

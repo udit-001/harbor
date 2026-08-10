@@ -4,10 +4,9 @@ import (
 	_ "embed"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
-// Workspace seed files — the default content written into a freshly created
+// Workspace seed assets — the default files written into a freshly created
 // workspace. Real files (lintable, syntax-highlighted, previewable) embedded
 // at compile time; one source of truth for what a new workspace contains.
 //
@@ -21,25 +20,17 @@ var SeedCopyCodeJS string
 //go:embed seed/fonts/inter-latin.woff2
 var SeedInterLatinWOFF2 []byte
 
-//go:embed seed/RESOURCES.md
-var seedResourcesMD string
-
-//go:embed seed/NOTES.md
-var seedNotesMD string
-
-// seedWorkspaceDefaults writes the default workspace content (JS/CSS assets,
-// RESOURCES/NOTES templates) into the given layout's root. displayName is
-// substituted into the parameterized markdown templates. Existing files are
-// preserved — the seed only writes when the target is absent, so re-running
-// on an existing workspace won't clobber user edits.
-func seedWorkspaceDefaults(layout Layout, displayName string) error {
+// seedWorkspaceDefaults writes the default workspace assets (JS/CSS, fonts)
+// into the given layout's root. Existing files are preserved — the seed only
+// writes when the target is absent, so re-running on an existing workspace
+// won't clobber user edits.
+func seedWorkspaceDefaults(layout Layout) error {
+	// Text assets (shared JS helpers)
 	files := []struct {
 		path    string
 		content string
 	}{
 		{layout.AssetPath("copy-code.js"), SeedCopyCodeJS},
-		{layout.ResourcesPath(), strings.ReplaceAll(seedResourcesMD, "{{DISPLAY_NAME}}", displayName)},
-		{layout.NotesPath(), seedNotesMD},
 	}
 	for _, f := range files {
 		if _, err := os.Stat(f.path); err == nil {
@@ -50,7 +41,7 @@ func seedWorkspaceDefaults(layout Layout, displayName string) error {
 		}
 	}
 
-	// Binary assets (fonts, etc.)
+	// Bigger assets (fonts, etc.)
 	bins := []struct {
 		path string
 		data []byte
@@ -59,7 +50,7 @@ func seedWorkspaceDefaults(layout Layout, displayName string) error {
 	}
 	for _, f := range bins {
 		if _, err := os.Stat(f.path); err == nil {
-			continue
+			continue // file exists — preserve
 		}
 		if err := writeBytesToFile(f.path, f.data); err != nil {
 			return err

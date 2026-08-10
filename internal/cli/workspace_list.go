@@ -9,8 +9,8 @@ import (
 
 var workspaceListCmd = &cobra.Command{
 	Use:   "list",
-	Short: "List learning workspaces",
-	Long: `List all learning workspaces with stats. The current workspace is marked with *.
+	Short: "List workspaces",
+	Long: `List all workspaces with stats. The current workspace is marked with *.
 
 Examples:
   harbor workspace list

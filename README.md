@@ -31,8 +31,8 @@ A **page** is a self-contained HTML artifact your agent produced:
 - Labeled **draft / published / archived**
 
 A **workspace** is a named body of work pages belong to. It's a directory under
-`~/.harbor/workspaces/` seeded with `MISSION.md`, `RESOURCES.md`, `NOTES.md`
-plus `lessons/`, `learning-records/`, `reference/` and `assets/` scaffold.
+`~/.harbor/workspaces/` seeded with `RESOURCES.md` and `NOTES.md`, plus an
+`assets/` directory for shared files.
 
 ## Web dashboard
 

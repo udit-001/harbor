@@ -10,23 +10,19 @@ import (
 
 var workspaceCreateCmd = &cobra.Command{
 	Use:   "create <name>",
-	Short: "Create a new learning workspace",
-	Long: `Create a new learning workspace.
+	Short: "Create a new workspace",
+	Long: `Create a new workspace.
 
 The workspace is a directory under your data directory's workspaces/ containing:
-  MISSION.md          — Why you're learning this topic
-  RESOURCES.md        — Curated sources and communities
-  NOTES.md            — Preferences and working notes
-  lessons/            — Self-contained lesson HTML files
-  learning-records/   — ADR-style learning records
-  reference/          — Cheat sheets and reference docs
-  assets/             — Reusable components (stylesheets, quizzes)
+  RESOURCES.md    — Curated sources and references
+  NOTES.md        — Free-form notes
+  assets/         — Shared assets (stylesheets, fonts, etc.)
 
 Use '--dir <path>' to place the workspace elsewhere.
 
 Examples:
-  harbor workspace create "SQL for Research"
-  harbor workspace create "Jump Start a Car" --dir ./my-workspace`,
+  harbor workspace create "Payroll App"
+  harbor workspace create "Design System" --dir ./my-workspace`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		s := mustStore(cmd)

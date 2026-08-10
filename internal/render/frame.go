@@ -99,21 +99,6 @@ func sidebarBody(f Frame) string {
 		b.WriteString(sidebarSection(iconBookmark(), "References", "refs", items.String(), len(f.Sidebar.Refs), at == "ref"))
 	}
 
-	// Workspace docs at the bottom
-	docs := []struct{ kind, label, icon string }{
-		{"mission", "Mission", iconTarget()},
-		{"resources", "Resources", iconLink()},
-		{"glossary", "Glossary", iconBookOpen()},
-		{"notes", "Notes", iconPencil()},
-	}
-	var wsItems strings.Builder
-	for _, doc := range docs {
-		active := at == doc.kind
-		wsItems.WriteString(sidebarLink(urls.Doc(ws.Name, doc.kind), doc.icon, doc.label, active))
-	}
-	wsActive := at == "mission" || at == "resources" || at == "glossary" || at == "notes"
-	b.WriteString(sidebarSection(iconCompass(), "Workspace", "workspace", wsItems.String(), 0, wsActive))
-
 	return b.String()
 }
 
