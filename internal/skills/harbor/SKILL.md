@@ -65,9 +65,3 @@ library.
 `harbor start` serves the Library dashboard. Humans browse there; you operate
 through the CLI above. Pages render byte-for-byte as made — Harbor never
 restyles or injects into them.
-
-## Empty states
-
-The dashboard's empty states show the exact command that fills them. If a human
-reports a blank library, run `harbor page add <file> --workspace <work>
---description "..."`.
