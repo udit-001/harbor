@@ -43,6 +43,10 @@ A **workspace** is a named body of work pages belong to. It's a directory under
 - **Live search** across titles, tags, and descriptions — all filtering is
   client-side, no page reloads
 - A **page view** with container ⇄ full modes and prev/next within the current set
+- An anchored-**comment** review surface — select text or an element on a page to
+  leave feedback, with open-comment badges on the list
+- A **what-changed** walkthrough that replays each recorded `harbor change`
+  (its title + description) against the page
 - Light / dark theme toggle, persisted per browser
 
 ## Commands
@@ -51,7 +55,8 @@ A **workspace** is a named body of work pages belong to. It's a directory under
 harbor init        # set up config + database
 harbor workspace   # create / list / rename / delete workspaces
 harbor page        # add / list / read / update / delete pages
-harbor scrap       # global scratchpad scraps
+harbor comments    # list / watch / update anchored page feedback
+harbor change      # record a "what changed" walkthrough entry per page
 harbor tag         # manage tags (name + semantic description)
 harbor search      # full-text search across pages
 harbor config      # read / set configuration
@@ -83,4 +88,5 @@ git tag v0.1.0 && git push --tags
 ```
 
 GoReleaser (`.goreleaser.yaml`) cross-compiles linux/darwin/windows ×
-amd64/arm64 and produces archives, a checksums file, and Linux packages.
+amd64/arm64 and produces archives, a checksums file (cosign-signed keyless),
+and Linux packages.
