@@ -71,16 +71,3 @@ restyles or injects into them.
 The dashboard's empty states show the exact command that fills them. If a human
 reports a blank library, run `harbor page add <file> --workspace <work>
 --description "..."`.
-
-## Editing this skill / the tool
-
-The CLI and stores follow a **two-seam contract**:
-- All data operations go through the single `db.Store` seam
-  (`internal/db/pages.go`, `workspaces.go`, `scraps.go`). Tests there never
-  mock — they run against real temp SQLite files (`pages_test.go`).
-- CLI commands are thin Cobra wrappers over the store; CLI tests are
-  HOME-sandboxed via `t.Setenv("HOME", t.TempDir())` so imports write to
-  scratch space.
-
-Keep the leading word `harbor`, the domain vocabulary (page / workspace / tag /
-library), and the canonical-spelling rule intact when you edit.
