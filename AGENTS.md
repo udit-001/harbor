@@ -9,7 +9,8 @@ agent builds.
 - `harbor build` — rebuild CSS + Go binary into `bin/harbor`
 - `make test` — `go test ./...` (real SQLite temp files, no mocks)
 - `harbor start` / `harbor stop` / `harbor dev` — run / stop / hot-reload the web dashboard
-- `harbor page`, `harbor workspace`, `harbor search`, `harbor scrap`, `harbor tag` — CLI surface
+- `harbor page`, `harbor workspace`, `harbor search`, `harbor tag`, `harbor comments`,
+  `harbor change`, `harbor nav`, `harbor asset` — CLI surface (see `docs/cli-reference.md`)
 
 ## Layout
 
@@ -19,7 +20,7 @@ agent builds.
 - `internal/server/` — `NewMux(store, dataDir, devCSS)` HTTP mux (the testable seam).
 - `internal/render/` — all HTML output.
 - `internal/db/` — SQLite via sqlx; `internal/migrate/` is goose-managed `*.sql`.
-- `internal/{config,docutil,extract,markdown,skills,urls,version,web}` — supporting packages.
+- `internal/{config,extract,markdown,skills,urls,version,web}` — supporting packages.
 
 ## Rendering
 
