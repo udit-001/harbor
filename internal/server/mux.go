@@ -277,7 +277,7 @@ func handleListPageComments(store *db.Store) http.HandlerFunc {
 			jsonError(w, "page not found", http.StatusNotFound)
 			return
 		}
-		comments, err := store.ListComments(db.CommentFilter{PageSlug: slug})
+		comments, err := store.ListComments(db.CommentFilter{PageSlug: slug, Status: r.URL.Query().Get("status")})
 		if err != nil {
 			jsonError(w, "failed to load comments", http.StatusInternalServerError)
 			return

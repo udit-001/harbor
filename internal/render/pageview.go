@@ -165,28 +165,43 @@ func commentPanelMarkup() string {
     <button class="icon-btn cp-close" id="commentClose" aria-label="Close comments" title="Close">` + iconClose() + `</button>
   </div>
   <div class="cp-body">
-    <div class="cp-capture" id="cpCapture">Click an element in the page, or select its text, to anchor your comment — then type and post.</div>
-    <div class="cp-row">
-      <select id="cpType" aria-label="Comment type">
-        <option value="general">Whole page</option>
-        <option value="selection">Text selection</option>
-        <option value="element">Element</option>
-      </select>
-    </div>
-    <div class="cp-fields">
-      <div class="cp-anchor"><span class="cp-label">Where</span><code id="cpAnchor">whole page</code><button type="button" class="cp-clear" id="cpClear" hidden aria-label="Clear selection" title="Clear">` + iconClear() + `</button></div>
-      <div class="cp-quote" id="cpQuoteWrap" hidden><span class="cp-label">Quote</span><blockquote id="cpQuote"></blockquote></div>
-    </div>
-    <form id="commentForm" class="cp-form">
-      <label class="cp-label" for="cpBody">Your feedback</label>
-      <textarea id="cpBody" rows="4" required placeholder="Tell the agent what to change…"></textarea>
-      <div class="cp-error" id="cpError" role="alert"></div>
-      <div class="cp-actions">
-        <button type="submit" id="cpSubmit" class="cp-submit">Post comment</button>
+    <!-- List-first pane (default): review history + filters, compose is opt-in. -->
+    <div class="cp-pane" id="cpListPane">
+      <div class="cp-toolbar">
+        <div class="cp-filters" role="group" aria-label="Filter comments">
+          <button type="button" class="cp-chip" data-filter="open">Open</button>
+          <button type="button" class="cp-chip" data-filter="done">Done</button>
+          <button type="button" class="cp-chip" data-filter="all">All</button>
+        </div>
+        <button type="button" class="cp-newbtn" id="cpNew">+ New comment</button>
       </div>
-    </form>
-    <div class="cp-list-head" id="cpListHead" hidden>Comments</div>
-    <ol class="cp-list" id="cpList" aria-live="polite"></ol>
+      <div class="cp-list-head" id="cpListHead" hidden>Comments</div>
+      <ol class="cp-list" id="cpList" aria-live="polite"></ol>
+    </div>
+    <!-- Compose pane (whole-doc via New comment; anchored via the pill). -->
+    <div class="cp-pane" id="cpComposePane" hidden>
+      <div class="cp-capture" id="cpCapture">Click an element in the page, or select its text, to anchor your comment — then type and post.</div>
+      <div class="cp-row">
+        <select id="cpType" aria-label="Comment type">
+          <option value="general">Whole page</option>
+          <option value="selection">Text selection</option>
+          <option value="element">Element</option>
+        </select>
+      </div>
+      <div class="cp-fields">
+        <div class="cp-anchor"><span class="cp-label">Where</span><code id="cpAnchor">whole page</code><button type="button" class="cp-clear" id="cpClear" hidden aria-label="Clear selection" title="Clear">` + iconClear() + `</button></div>
+        <div class="cp-quote" id="cpQuoteWrap" hidden><span class="cp-label">Quote</span><blockquote id="cpQuote"></blockquote></div>
+      </div>
+      <form id="commentForm" class="cp-form">
+        <label class="cp-label" for="cpBody">Your feedback</label>
+        <textarea id="cpBody" rows="4" required placeholder="Tell the agent what to change…"></textarea>
+        <div class="cp-error" id="cpError" role="alert"></div>
+        <div class="cp-actions">
+          <button type="button" class="cp-pill" id="cpCancel">Cancel</button>
+          <button type="submit" id="cpSubmit" class="cp-submit">Post comment</button>
+        </div>
+      </form>
+    </div>
   </div>
 </div>`
 }
@@ -395,6 +410,28 @@ func commentPanelScript(slug string) string {
   const errEl=document.getElementById('cpError');
   const listEl=document.getElementById('cpList');
   const listHeadEl=document.getElementById('cpListHead');
+  const listPane=document.getElementById('cpListPane');
+  const composePane=document.getElementById('cpComposePane');
+  const newBtn=document.getElementById('cpNew');
+  const cancelBtn=document.getElementById('cpCancel');
+  const chips=document.querySelectorAll('.cp-chip');
+  const titleEl=document.getElementById('commentPanelTitle');
+  // List-first view (HARB-33): the drawer opens to the history; compose is
+  // opt-in. Closed comments are hidden by default (filter=open).
+  let filter='open';
+  let view='list';
+  function showView(v){
+    view=v;
+    listPane.hidden=(v!=='list');
+    composePane.hidden=(v!=='compose');
+    listHeadEl.hidden=(v!=='list');
+    titleEl.textContent=(v==='compose') ? 'New comment' : 'Comments';
+  }
+  function refreshChips(){ chips.forEach(function(ch){ ch.classList.toggle('active', ch.dataset.filter===filter); }); }
+  chips.forEach(function(ch){ ch.addEventListener('click',function(){ filter=ch.dataset.filter; refreshChips(); loadList(); }); });
+  newBtn.addEventListener('click',function(){ resetCompose(); showView('compose'); body.focus(); });
+  cancelBtn.addEventListener('click',function(){ showView('list'); loadList(); });
+  refreshChips();
   const clearBtn=document.getElementById('cpClear');
   const LIST_URL='/api/pages/'+encodeURIComponent(slug)+'/comments';
 
@@ -439,12 +476,22 @@ func commentPanelScript(slug string) string {
     panel.setAttribute('aria-hidden',String(!v));
     btn.setAttribute('aria-expanded',String(v));
     document.body.classList.toggle('commenting',v);
-    if(v){ if(window.harborModes) window.harborModes.set('comment'); hideAfford(); showHeader(); body.focus(); loadList(); }
+    if(v){ if(window.harborModes) window.harborModes.set('comment'); hideAfford(); showHeader(); showView('list'); loadList(); }
     else {
       if(window.harborModes && window.harborModes.get()==='comment') window.harborModes.set('reader');
       if(document.activeElement&&document.activeElement.closest('#commentPanel')) btn.focus();
       resetCompose();
     }
+  }
+  // Open the comment panel DIRECTLY into the compose pane (anchored paths: the
+  // selection pill, in-flow re-anchoring). List-first open goes through setOpen.
+  function openCompose(){
+    open=true;
+    panel.classList.add('open'); panel.setAttribute('aria-hidden','false'); btn.setAttribute('aria-expanded','true'); document.body.classList.add('commenting');
+    if(window.harborModes) window.harborModes.set('comment');
+    hideAfford(); showHeader();
+    showView('compose');
+    body.focus();
   }
   function showHeader(){ const pv=document.getElementById('pv'); pv&&pv.classList.add('is-visible'); }
 
@@ -553,12 +600,12 @@ func commentPanelScript(slug string) string {
   function hideAfford(){ doneCommentIntent(); if(afford&&afford.parentNode){ afford.parentNode.removeChild(afford); afford=null; } }
   function doneCommentIntent(){ pendingComment=null; }
   function openCommentFromSelection(){
-    if(pendingComment){ const p=pendingComment; hideAfford(); state={type:'selection',anchor:p.anchor,quote:p.quote}; renderState(); setOpen(true); return; }
+    if(pendingComment){ const p=pendingComment; hideAfford(); state={type:'selection',anchor:p.anchor,quote:p.quote}; renderState(); openCompose(); return; }
     // Fallback: read a still-live selection if the pill's captured snapshot is gone.
     const w=frame.contentWindow, sel=w&&w.getSelection(); const text=sel?sel.toString().trim():'';
     if(!text) return;
     const an=sel.anchorNode; const el=an?(an.nodeType===1?an:an.parentElement):null;
-    hideAfford(); state={type:'selection',anchor:cssPath(el),quote:text}; renderState(); setOpen(true);
+    hideAfford(); state={type:'selection',anchor:cssPath(el),quote:text}; renderState(); openCompose();
   }
   function clearHover(){ if(hoverEl){ hoverEl.classList.remove('cp-hover'); hoverEl=null; } }
   function clearAnchored(){ if(anchoredEl){ anchoredEl.classList.remove('cp-anchored'); anchoredEl=null; } }
@@ -675,6 +722,7 @@ func commentPanelScript(slug string) string {
         const el=an?(an.nodeType===1?an:an.parentElement):null;
         state={type:'selection',anchor:cssPath(el),quote:text};
         renderState(); // in-flow re-anchor
+        showView('compose'); // surface the compose pane for the just-captured anchor
         return;
       }
       // Reader mode: selection stays inert, but a passing "Comment" pill is
@@ -690,7 +738,8 @@ func commentPanelScript(slug string) string {
       if(!canPickElement()) return;
       if(hasTextSelection()) return; // a drag-selection just became a quote; don't override it
       state={type:'element',anchor:cssPath(ev.target),quote:''};
-      renderState(); setOpen(true);
+      renderState();
+      showView('compose'); // panel is already open; drop into the compose pane
     },true);
   }
   frame.addEventListener('load',wire);
@@ -712,7 +761,7 @@ func commentPanelScript(slug string) string {
     fetch(LIST_URL,{method:'POST',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({type:state.type,anchor:state.anchor,quote:state.quote,body:text})})
       .then(r=>{ if(!r.ok) return r.json().then(j=>Promise.reject(j&&j.error)).catch(()=>Promise.reject('could not save comment ('+r.status+')')); return r.json(); })
-      .then(()=>{ resetCompose(); loadList(); bumpOpenFb(); })
+      .then(()=>{ resetCompose(); showView('list'); loadList(); bumpOpenFb(); })
       .catch(m=>{ errEl.textContent=m; errEl.classList.add('show'); })
       .finally(()=>{ submit.disabled=false; });
   });
@@ -735,7 +784,8 @@ func commentPanelScript(slug string) string {
   // List existing comments for the page.
   function escHTML(s){ return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
   function loadList(){
-    fetch(LIST_URL).then(r=>r.json()).then(items=>{
+    var url=LIST_URL + (filter==='all' ? '' : '?status='+encodeURIComponent(filter));
+    fetch(url).then(r=>r.json()).then(items=>{
       listHeadEl.hidden = (items.length===0);
       listEl.innerHTML='';
       if(!items.length){ listEl.innerHTML='<li class="cp-empty">No comments yet.</li>'; return; }
@@ -824,6 +874,19 @@ transition:transform .28s var(--ease),opacity .28s var(--ease)}
 .cp-title{font-weight:600;color:var(--strong);font-size:13px;letter-spacing:.02em}
 .cp-close{width:44px;height:44px;margin-left:auto}
 .cp-body{flex:1;min-height:0;overflow-y:auto;padding:20px}
+/* List-first pane (HARB-33): toolbar with filters + New comment, plus the
+   compose pane shown only on demand. */
+.cp-pane[hidden]{display:none}
+.cp-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
+.cp-filters{display:flex;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px}
+.cp-chip{border:0;background:transparent;color:var(--muted);font:600 11px var(--font);padding:5px 10px;
+border-radius:999px;cursor:pointer;transition:background .1s,color .1s}
+.cp-chip:hover{color:var(--strong)}
+.cp-chip.active{background:var(--surface);color:var(--strong);box-shadow:0 1px 2px rgba(46,52,64,.12)}
+.cp-newbtn{margin-left:auto;border:1px solid var(--border);background:var(--surface);color:var(--acc);
+border-radius:999px;padding:6px 12px;font:600 11.5px var(--font);cursor:pointer;white-space:nowrap;
+transition:background .1s,border-color .1s}
+.cp-newbtn:hover{background:var(--acc-soft);border-color:var(--acc)}
 .cp-form{display:flex;flex-direction:column;gap:8px;margin-top:18px}
 .cp-capture{font-size:12.5px;color:var(--muted);line-height:1.6;background:var(--surface2);
 border:1px dashed var(--border);border-radius:var(--rs);padding:12px 14px;margin:2px 0 4px}

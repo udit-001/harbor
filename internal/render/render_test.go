@@ -19,6 +19,10 @@ func TestPageViewHasCommentPanel(t *testing.T) {
 		"No comments yet",            // empty list state rendered by the shell
 		`window.harborResolveAnchor`, // anchor resolution (HARB-30)
 		`data-cf-change`,             // resolve prefers change-marker identity
+		`id="cpListPane"`,            // list-first drawer (HARB-33)
+		`id="cpComposePane"`,         // compose pane is separate/opt-in
+		`id="cpNew"`,                 // "New comment" entry
+		`data-filter`,                // Open/Done/All filter chips
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("page view missing %q", want)
