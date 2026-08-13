@@ -29,6 +29,8 @@ func TestPageViewHasCommentPanel(t *testing.T) {
 		`cp-item-actions`,            // per-item Jump/Edit/Done/Reply (HARB-34)
 		`data-act="jump"`,            // list item action buttons
 		`id="cpReplyTo"`,             // reply context line
+		`id="collectBtn"`,            // collect-mode toggle (HARB-35)
+		`collectSet`,                 // multi-anchor set logic
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("page view missing %q", want)

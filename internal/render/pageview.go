@@ -85,6 +85,7 @@ func pageViewHeader(d PageViewData) string {
 	} else {
 		b.WriteString(`<span class="icon-btn disabled" title="No next">` + iconNext() + `</span>`)
 	}
+	b.WriteString(`<button class="icon-btn" id="collectBtn" aria-pressed="false" aria-label="Collect mode" title="Collect: pick several spots to flag at once">` + iconCollect() + `</button>`)
 	b.WriteString(`<button class="icon-btn" id="commentBtn" aria-haspopup="dialog" aria-expanded="false" aria-label="Comments" title="Comments">` + iconComment() + `</button>`)
 	b.WriteString(`<button class="icon-btn" id="modeBtn" title="Toggle full / container" aria-label="Toggle view mode">` + iconExpand() + `</button>`)
 	b.WriteString(`<a class="icon-btn" href="` + e(d.RawURL) + `" target="_blank" rel="noopener" title="Pop out" aria-label="Pop out">` + iconPopOut() + `</a>`)
@@ -152,6 +153,9 @@ func iconPopOut() string {
 }
 func iconComment() string {
 	return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>`
+}
+func iconCollect() string {
+	return `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8v8M8 12h8"/><circle cx="12" cy="12" r="9"/></svg>`
 }
 
 // commentPanelMarkup is the shell-side comment panel: a right-hand drawer where
@@ -469,17 +473,19 @@ func commentPanelScript(slug string) string {
   let editID=0;        // when >0 the inline box edits this open comment (PATCH)
   function mapStateAnchor(){ return {kind:state.type==='selection'?'text':(state.type==='element'?'element':'document'), path:state.anchor, quote:state.quote}; }
   function inlineResolved(){ return window.harborResolveAnchor ? window.harborResolveAnchor(mapStateAnchor()) : null; }
+  function positionInlineFor(el){
+    if(!el) return;
+    var fr=frame.getBoundingClientRect(), er=el.getBoundingClientRect();
+    var cw=inlineBox.offsetWidth||288, ch=inlineBox.offsetHeight||212, margin=12;
+    var left=Math.max(8,Math.min(fr.left+er.left+er.width/2-cw/2, window.innerWidth-cw-8));
+    inlineBox.style.transform=''; inlineBox.style.top=''; inlineBox.style.left='';
+    var ty=fr.top+er.top;
+    if(ty>ch+margin){ inlineBox.style.top=(ty-ch-margin)+'px'; } else { inlineBox.style.top=(ty+er.height+margin)+'px'; }
+    inlineBox.style.left=left+'px';
+  }
   function positionInline(){
     var r=inlineResolved(); if(!r||!r.el) return false;
-    var fr=frame.getBoundingClientRect(), er=r.el.getBoundingClientRect();
-    var tx=fr.left+er.left, ty=fr.top+er.top;
-    var cw=inlineBox.offsetWidth||288, ch=inlineBox.offsetHeight||212, margin=12;
-    var left=Math.max(8,Math.min(tx+er.width/2-cw/2, window.innerWidth-cw-8));
-    inlineBox.style.top=''; inlineBox.style.left='';
-    if(ty>ch+margin){ inlineBox.style.top=(ty-ch-margin)+'px'; }
-    else { inlineBox.style.top=(ty+er.height+margin)+'px'; }
-    inlineBox.style.left=left+'px';
-    return true;
+    positionInlineFor(r.el); return true;
   }
   function showInline(){
     if(!state.anchor && state.type!=='element') return; // needs an anchor
@@ -493,23 +499,90 @@ func commentPanelScript(slug string) string {
   }
   function hideInline(){ inlineBox.hidden=true; inlineBox.setAttribute('aria-hidden','true'); }
   function cancelInline(){
-    hideInline(); editID=0; replyParent=0; setReplyContext(0); resetCompose();
+    hideInline(); editID=0; replyParent=0; setReplyContext(0); discardCollect(); resetCompose();
     if(window.harborModes && window.harborModes.get()==='comment') window.harborModes.set('reader');
   }
   function postInline(){
     var text=inlineBody.value.trim(); if(!text) return;
     inlineErr.hidden=true; inlinePost.disabled=true;
-    var method='POST', url=LIST_URL, payload={type:state.type,anchor:state.anchor,quote:state.quote,body:text,replyTo:replyParent};
+    var method='POST', url=LIST_URL, payload=null;
     if(editID){ method='PATCH'; url=LIST_URL+'/'+editID; payload={body:text, anchors:[mapStateAnchor()]}; }
+    else if(collectSet.length){ payload={body:text, anchors:collectSet.map(function(p){ return {kind:p.kind,path:p.path,quote:p.quote||''}; })}; }
+    else { payload={type:state.type,anchor:state.anchor,quote:state.quote,body:text,replyTo:replyParent}; }
     fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
       .then(function(r){ if(!r.ok) return r.json().then(function(j){ return Promise.reject(j&&j.error); }).catch(function(){ return Promise.reject('could not save comment ('+r.status+')'); }); return r.json(); })
-      .then(function(){ hideInline(); editID=0; replyParent=0; setReplyContext(0); resetCompose(); dropPickStyle(); setOpen(true); bumpOpenFb(); }) // drawer opens to the list so it lands visibly
+      .then(function(){ hideInline(); editID=0; replyParent=0; setReplyContext(0); discardCollect(); resetCompose(); dropPickStyle(); setOpen(true); bumpOpenFb(); }) // drawer opens to the list so it lands visibly
       .catch(function(m){ inlineErr.textContent=m; inlineErr.hidden=false; })
       .finally(function(){ inlinePost.disabled=false; });
   }
   inlinePost.addEventListener('click',postInline);
   inlineCancel.addEventListener('click',cancelInline);
   inlineClose.addEventListener('click',cancelInline);
+
+  // ── Collect mode (HARB-35) ────────────────────────────────────────────
+  // With Collect on, element clicks add and each completed text drag snapshots
+  // one span into a multi-anchor set. All stay pinned (dashed outline); clicking
+  // a pinned element toggles it off. A pins bar offers Comment / Clear; the
+  // gathered set is discarded on Escape / Clear (no draft).
+  let collect=false;
+  let collectSet=[]; // [{kind,path,quote,el}]
+  const collectBtn=document.getElementById('collectBtn');
+  function ensurePinStyle(){
+    try{ var d=frame.contentDocument; if(!d||!d.head) return;
+      if(!window.__cpPinStyle){ window.__cpPinStyle=d.createElement('style'); window.__cpPinStyle.textContent='.cp-collect-pin{outline:2px dashed rgba(191,97,106,.9)!important;outline-offset:1px!important;box-shadow:inset 0 0 0 3000px rgba(191,97,106,.06)!important;cursor:pointer!important}'; d.head.appendChild(window.__cpPinStyle); }
+    }catch(_){}
+  }
+  function reindexPins(){ for(var i=0;i<collectSet.length;i++){ if(collectSet[i].el) collectSet[i].el.setAttribute('data-cp-pin',String(i)); } }
+  function addPin(pin){
+    ensurePinStyle();
+    for(var i=0;i<collectSet.length;i++){ var e=collectSet[i]; if(e.kind===pin.kind && e.path===pin.path) return; }
+    var elRes=window.harborResolveAnchor&&window.harborResolveAnchor({kind:pin.kind,path:pin.path,quote:pin.quote||''});
+    if(elRes&&elRes.el) pin.el=elRes.el;
+    collectSet.push(pin);
+    if(pin.el){ pin.el.classList.add('cp-collect-pin'); pin.el.setAttribute('data-cp-pin',String(collectSet.length-1)); }
+    refreshPins();
+  }
+  function removePinAt(i){
+    if(i<0||i>=collectSet.length) return;
+    var p=collectSet[i]; if(p.el){ p.el.classList.remove('cp-collect-pin'); p.el.removeAttribute('data-cp-pin'); }
+    collectSet.splice(i,1); reindexPins(); refreshPins();
+  }
+  function clearPins(){ for(var i=0;i<collectSet.length;i++){ var p=collectSet[i]; if(p.el){ p.el.classList.remove('cp-collect-pin'); p.el.removeAttribute('data-cp-pin'); } } collectSet=[]; refreshPins(); }
+  var pinsBar=null;
+  function ensurePinsBar(){
+    if(pinsBar&&pinsBar.parentNode) return pinsBar;
+    pinsBar=document.createElement('div'); pinsBar.className='cp-pins';
+    pinsBar.innerHTML='<span class="cp-pins-count"></span><button type="button" class="cp-pins-clear">Clear</button><button type="button" class="cp-pins-post">Comment</button>';
+    document.body.appendChild(pinsBar);
+    pinsBar.querySelector('.cp-pins-clear').addEventListener('click',function(){ clearPins(); setCollect(false); });
+    pinsBar.querySelector('.cp-pins-post').addEventListener('click',commentSet);
+    return pinsBar;
+  }
+  function refreshPins(){
+    var bar=ensurePinsBar(); var n=collectSet.length;
+    bar.hidden=(n===0);
+    if(n) bar.querySelector('.cp-pins-count').textContent='Pinned '+n;
+  }
+  function setCollect(v){
+    collect=v;
+    collectBtn.setAttribute('aria-pressed',String(v));
+    collectBtn.classList.toggle('active',v);
+    if(!v) refreshPins();
+  }
+  function discardCollect(){ clearPins(); setCollect(false); }
+  collectBtn.addEventListener('click',function(){ setCollect(!collect); });
+  // Comment the collected set (opens the inline box with an N-spot header).
+  function commentSet(){
+    if(!collectSet.length) return;
+    if(window.harborModes) window.harborModes.set('comment');
+    hideAfford(); editID=0; replyParent=0; inlineBody.value=''; inlineErr.hidden=true;
+    inlineTitle.textContent='Commenting on '+collectSet.length+' spots';
+    inlineWhere.textContent=collectSet.length+' spots';
+    inlineBox.hidden=false; inlineBox.setAttribute('aria-hidden','false');
+    var last=collectSet[collectSet.length-1]; var t=last&&last.el;
+    if(t){ positionInlineFor(t); } else { inlineBox.style.left='50%'; inlineBox.style.top='40%'; inlineBox.style.transform='translateX(-50%)'; }
+    inlineBody.focus();
+  }
   const clearBtn=document.getElementById('cpClear');
   const LIST_URL='/api/pages/'+encodeURIComponent(slug)+'/comments';
 
@@ -716,7 +789,7 @@ func commentPanelScript(slug string) string {
   }
   btn.addEventListener('click',toggleOpen);
   close.addEventListener('click',()=>setOpen(false));
-  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ if(open) setOpen(false); else if(!inlineBox.hidden) cancelInline(); else hideAfford(); } });
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ if(open) setOpen(false); else if(!inlineBox.hidden) cancelInline(); else if(collectSet.length) discardCollect(); else hideAfford(); } });
 
   // Update the preview UI from state. The Clear affordance is offered only
   // while a selection/element target is captured (anchor is set).
@@ -788,10 +861,14 @@ func commentPanelScript(slug string) string {
     if(!doc) return;
     // Forward Escape from inside the page: focus lives in the iframe after a
     // selection/pick, and its keydown never reaches the shell document.
-    doc.addEventListener('keydown',(ev)=>{ if(ev.key==='Escape'){ if(open) setOpen(false); else if(!inlineBox.hidden) cancelInline(); else hideAfford(); } },true);
+    doc.addEventListener('keydown',(ev)=>{ if(ev.key==='Escape'){ if(open) setOpen(false); else if(!inlineBox.hidden) cancelInline(); else if(collectSet.length) discardCollect(); else hideAfford(); } },true);
     doc.addEventListener('mouseup',(ev)=>{
       const win=frame.contentWindow, sel=win&&win.getSelection();
       const text=sel?sel.toString().trim():'';
+      if(collect && !open){
+        if(text && sel && !sel.isCollapsed){ const an=sel.anchorNode; const pe=an?(an.nodeType===1?an:an.parentElement):null; addPin({kind:'text',path:cssPath(pe),quote:text}); }
+        return;
+      }
       if(open){
         if(!text) return;
         // The anchor of a text selection is usually a text node (use its
@@ -813,6 +890,16 @@ func commentPanelScript(slug string) string {
     doc.addEventListener('selectionchange',()=>{ const s=frame.contentWindow&&frame.contentWindow.getSelection(); if(!s||s.isCollapsed) hideAfford(); });
     doc.addEventListener('mousemove',trackHover,true);
     doc.addEventListener('click',(ev)=>{
+      // Collect mode (panels closed): a click adds the element to the set;
+      // clicking an already-pinned element toggles it off (removal).
+      if(collect && !open){
+        if(hasTextSelection()) return;
+        var pinEl=ev.target&&ev.target.closest?ev.target.closest('[data-cp-pin]'):null;
+        if(pinEl){ removePinAt(parseInt(pinEl.getAttribute('data-cp-pin'),10)); return; }
+        var tg=ev.target; if(!tg||tg.nodeType!==1) return;
+        addPin({kind:'element',path:cssPath(tg),quote:''});
+        return;
+      }
       if(!canPickElement()) return;
       if(hasTextSelection()) return; // a drag-selection just became a quote; don't override it
       setOpen(false); // anchored compose is inline; drop the drawer
@@ -1100,6 +1187,16 @@ font:600 13px var(--font);cursor:pointer}
 .cp-act:hover{color:var(--strong);background:var(--surface2);border-color:var(--text)}
 .cp-replyto{margin:0 0 10px;font-size:12px;color:var(--muted);background:var(--surface2);border-radius:var(--rs);padding:8px 10px}
 .cp-replyto[hidden]{display:none}
+/* Collect mode (HARB-35): header toggle, floating pins bar. */
+#collectBtn.active{color:var(--acc);background:var(--acc-soft)}
+.cp-pins{position:fixed;left:16px;bottom:16px;z-index:80;display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:6px 6px 6px 12px;box-shadow:0 1px 3px rgba(46,52,64,.12)}
+.cp-pins[hidden]{display:none}
+.cp-pins-count{font:600 12px var(--font);color:var(--strong);margin-right:2px}
+.cp-pins-clear,.cp-pins-post{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:5px 11px;font:600 11.5px var(--font);cursor:pointer;transition:background .1s,color .1s}
+.cp-pins-clear{color:var(--muted)}
+.cp-pins-clear:hover{color:var(--strong);background:var(--surface2)}
+.cp-pins-post{background:var(--acc);border-color:var(--acc);color:#fff}
+.cp-pins-post:hover{filter:brightness(.95)}
 .cp-empty{font-size:12.5px;color:var(--muted)}
 /* ── What-changed walkthrough ──
    Styled to match the shell's flat Nord surfaces (comment panel + header):
