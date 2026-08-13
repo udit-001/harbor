@@ -66,7 +66,7 @@ func TestCommentCreateListUpdateClose(t *testing.T) {
 		t.Fatalf("expected error for invalid status transition target")
 	}
 
-	// List open comments (all four create-first), oldest first; filter by page.
+	// List open comments (all four create-first), newest first; filter by page.
 	open, err := s.ListComments(CommentFilter{Status: CommentStatusOpen})
 	if err != nil {
 		t.Fatalf("list open: %v", err)
@@ -74,8 +74,13 @@ func TestCommentCreateListUpdateClose(t *testing.T) {
 	if len(open) != 4 {
 		t.Fatalf("open comments = %d, want 4", len(open))
 	}
-	if open[0].ID != selID {
-		t.Fatalf("first open comment = #%d, want #%d (stable thread order)", open[0].ID, selID)
+	if open[0].ID != defaulted.ID {
+		t.Fatalf("first open comment = #%d, want #%d (newest first)", open[0].ID, defaulted.ID)
+	}
+	for i := 1; i < len(open); i++ {
+		if open[i-1].ID < open[i].ID {
+			t.Fatalf("open comments not newest-first: #%d before #%d", open[i-1].ID, open[i].ID)
+		}
 	}
 
 	byPage, err := s.ListComments(CommentFilter{PageSlug: slug, Status: CommentStatusOpen})

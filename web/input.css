@@ -329,11 +329,17 @@
 }
 .sidebar-section-items {
   padding-left: 0.5rem;
+  display: grid;
+  grid-template-rows: 1fr;
   overflow: hidden;
-  transition: max-height 0.25s var(--ease-drawer);
+  transition: grid-template-rows 0.25s var(--ease-drawer);
+}
+.sidebar-section-items-inner {
+  min-height: 0;
+  overflow: hidden;
 }
 .sidebar-section-items.collapsed {
-  max-height: 0 !important;
+  grid-template-rows: 0fr;
 }
 
 .sidebar-link {
@@ -389,18 +395,16 @@
 
 /* ── Collapsible sidebar (icons-only mode) ── */
 #sidebar {
-  width: 240px;
-  min-width: 240px;
+  flex: 0 0 240px;
   transition: none !important;
 }
 #sidebar.sidebar-ready {
-  transition: transform 0.25s var(--ease-drawer), width 0.25s var(--ease-drawer), min-width 0.25s var(--ease-drawer), overflow 0.25s var(--ease-drawer) !important;
+  transition: transform 0.25s var(--ease-drawer), flex-basis 0.25s var(--ease-drawer);
 }
 
 @media (min-width: 48rem) {
   #sidebar.sidebar-collapsed {
-    width: 60px !important;
-    min-width: 60px !important;
+    flex: 0 0 60px !important;
     overflow: visible !important;
   }
   .sidebar-collapsed .sidebar-brand-text,
@@ -657,14 +661,9 @@
   border-color: #81a1c1;
 }
 
-@keyframes pwa-bounce {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-3px); }
-}
+/* The install icon is intentionally static: no infinite oscillation on a
+   developer dashboard, and nothing to disable under reduced motion. */
 .pwa-bounce {
-  animation: pwa-bounce 1s ease-in-out infinite;
-}
-#pwa-install:hover .pwa-bounce {
   animation: none;
 }
 

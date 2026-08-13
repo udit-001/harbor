@@ -45,11 +45,11 @@ templ document(f Frame, content string) {
 								<span class="text-left">Search…</span>
 								<kbd id="palette-trigger-kbd" class="text-[0.7rem] px-1.5 py-px rounded border border-slate-200 bg-slate-50 text-slate-400 font-sans leading-none">⌘K</kbd>
 							</button>
-							<a href="/about" class="p-1.5 rounded hover:bg-slate-200 text-slate-600 hover:text-slate-600 no-underline inline-flex items-center justify-center" data-tooltip="About">@templ.Raw(iconHelp())</a>
-							<button id="pwa-install" style="display:none" class="p-1.5 rounded hover:bg-slate-200 text-slate-600 cursor-pointer inline-flex items-center justify-center" data-tooltip="Install app">
+							<a href="/about" class="p-1.5 rounded hover:bg-slate-200 text-slate-600 hover:text-slate-600 no-underline inline-flex items-center justify-center" data-tooltip="About" aria-label="About">@templ.Raw(iconHelp())</a>
+							<button id="pwa-install" style="display:none" class="p-1.5 rounded hover:bg-slate-200 text-slate-600 cursor-pointer inline-flex items-center justify-center" data-tooltip="Install app" aria-label="Install app">
 								<svg class="pwa-bounce" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
 							</button>
-							<button id="theme-toggle" onclick="toggleTheme()" class="p-1.5 rounded hover:bg-slate-200 text-slate-600 cursor-pointer inline-flex items-center justify-center" data-tooltip="Toggle theme">
+							<button id="theme-toggle" onclick="toggleTheme()" class="p-1.5 rounded hover:bg-slate-200 text-slate-600 cursor-pointer inline-flex items-center justify-center" data-tooltip="Toggle theme" aria-label="Toggle theme">
 								<svg data-theme-icon="moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
 								<svg data-theme-icon="sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="theme-hidden"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
 								<svg data-theme-icon="contrast" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="theme-hidden"><circle cx="12" cy="12" r="10"/><path d="M12 18a6 6 0 0 0 0-12v12z"/></svg>
@@ -136,7 +136,7 @@ templ document(f Frame, content string) {
 					var chevron = label.querySelector('.sidebar-chevron');
 					if (!items) return;
 					var isCollapsed = items.classList.toggle('collapsed');
-					items.style.maxHeight = isCollapsed ? '0px' : items.scrollHeight + 'px';
+					label.setAttribute('aria-expanded', String(!isCollapsed));
 					if (chevron) {
 						chevron.style.transform = isCollapsed ? 'rotate(90deg)' : 'rotate(0deg)';
 					}
@@ -163,6 +163,11 @@ templ document(f Frame, content string) {
 					el.removeAttribute('title');
 				}
 			});
+			document.addEventListener('keydown', function(e) {
+				if ((e.key === 'Enter' || e.key === ' ') && e.target && e.target.matches && e.target.matches('.sidebar-section-label')) {
+					e.preventDefault(); toggleSection(e.target);
+				}
+			});
 			(function(){
 				// Restore sidebar collapsed state from localStorage
 				var sb = document.getElementById('sidebar');
@@ -181,22 +186,21 @@ templ document(f Frame, content string) {
 					// Don't override server state for the section containing the
 					// active page — it always stays expanded.
 					if (items.querySelector('.sidebar-link-active')) {
-						items.style.maxHeight = items.scrollHeight + 'px';
+						label.setAttribute('aria-expanded', 'true');
 						return;
 					}
 					var key = 'sidebar_' + ws + '_' + label.dataset.section;
 					var val = localStorage.getItem(key);
 					if (val === null) {
-						items.style.maxHeight = items.scrollHeight + 'px';
 						return;
 					}
 					if (val === '1') {
 						items.classList.add('collapsed');
-						items.style.maxHeight = '0px';
+						label.setAttribute('aria-expanded', 'false');
 						if (chevron) chevron.style.transform = 'rotate(90deg)';
 					} else {
 						items.classList.remove('collapsed');
-						items.style.maxHeight = items.scrollHeight + 'px';
+						label.setAttribute('aria-expanded', 'true');
 						if (chevron) chevron.style.transform = 'rotate(0deg)';
 					}
 				});

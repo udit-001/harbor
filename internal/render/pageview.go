@@ -36,7 +36,7 @@ func PageView(d PageViewData) string {
 	b.WriteString(pageViewCSS())
 	b.WriteString(`</head><body data-slug="` + e(d.Slug) + `">`)
 	b.WriteString(pageViewHeader(d))
-	b.WriteString(`<div class="wrap"><iframe id="frame" src="` + e(d.RawURL) + `" title="` + esc(d.Title) + `"></iframe></div>`)
+	b.WriteString(`<main class="wrap"><iframe id="frame" src="` + e(d.RawURL) + `" title="` + esc(d.Title) + `"></iframe></main>`)
 	b.WriteString(commentPanelMarkup())
 	b.WriteString(changeTourMarkup())
 	// Per-page data seam for the extracted JS files (HARB-36). Go writes the
@@ -70,14 +70,14 @@ func PageView(d PageViewData) string {
 
 func pageViewHeader(d PageViewData) string {
 	var b strings.Builder
-	b.WriteString(`<div class="pv" id="pv">`)
+	b.WriteString(`<header class="pv" id="pv">`)
 	// Breadcrumb: back to the library (parent), then the page title as the
 	// current crumb — one integrated location region, not chrome + heading in
 	// two separate rows.
-	b.WriteString(`<a class="icon-btn back" href="` + e(d.BackURL) + `" title="Back to library" aria-label="Back to library">` + iconChevronLeft() + `</a>`)
+	b.WriteString(`<a class="icon-btn back" href="` + e(d.BackURL) + `" data-tooltip="Back to library" aria-label="Back to library">` + iconChevronLeft() + `</a>`)
 	b.WriteString(`<a class="crumb" href="` + e(d.BackURL) + `">Library</a>`)
 	b.WriteString(`<span class="sep">/</span>`)
-	b.WriteString(`<span class="title">` + esc(d.Title) + `</span>`)
+	b.WriteString(`<h1 class="title">` + esc(d.Title) + `</h1>`)
 	b.WriteString(`<span class="badge ` + statusClass(d.Status) + `">` + esc(d.Status) + `</span>`)
 	if d.FeedbackOpen > 0 {
 		fmt.Fprintf(&b, `<span class="pv-fb" id="pvFb" data-n="%d" title="%d open comment(s)"><i></i>%d open</span>`, d.FeedbackOpen, d.FeedbackOpen, d.FeedbackOpen)
@@ -90,20 +90,19 @@ func pageViewHeader(d PageViewData) string {
 	b.WriteString(`</div><div class="navr">`)
 	// prev/next within the current set
 	if d.PrevURL != "" {
-		b.WriteString(`<a class="icon-btn" href="` + e(d.PrevURL) + `" title="Previous" aria-label="Previous">` + iconPrev() + `</a>`)
+		b.WriteString(`<a class="icon-btn" href="` + e(d.PrevURL) + `" data-tooltip="Previous" aria-label="Previous">` + iconPrev() + `</a>`)
 	} else {
 		b.WriteString(`<span class="icon-btn disabled" title="No previous">` + iconPrev() + `</span>`)
 	}
 	if d.NextURL != "" {
-		b.WriteString(`<a class="icon-btn" href="` + e(d.NextURL) + `" title="Next" aria-label="Next">` + iconNext() + `</a>`)
+		b.WriteString(`<a class="icon-btn" href="` + e(d.NextURL) + `" data-tooltip="Next" aria-label="Next">` + iconNext() + `</a>`)
 	} else {
 		b.WriteString(`<span class="icon-btn disabled" title="No next">` + iconNext() + `</span>`)
 	}
-	b.WriteString(`<button class="icon-btn" id="collectBtn" aria-pressed="false" aria-label="Collect mode" title="Collect: pick several spots to flag at once">` + iconCollect() + `</button>`)
-	b.WriteString(`<button class="icon-btn" id="commentBtn" aria-haspopup="dialog" aria-expanded="false" aria-label="Comments" title="Comments">` + iconComment() + `</button>`)
-	b.WriteString(`<button class="icon-btn" id="modeBtn" title="Toggle full / container" aria-label="Toggle view mode">` + iconExpand() + `</button>`)
-	b.WriteString(`<a class="icon-btn" href="` + e(d.RawURL) + `" target="_blank" rel="noopener" title="Pop out" aria-label="Pop out">` + iconPopOut() + `</a>`)
-	b.WriteString(`</div></div>`)
+	b.WriteString(`<button class="icon-btn" id="commentBtn" aria-haspopup="dialog" aria-expanded="false" aria-label="Comments" data-tooltip="Comments">` + iconComment() + `</button>`)
+	b.WriteString(`<button class="icon-btn" id="modeBtn" data-tooltip="Toggle full / container" aria-label="Toggle view mode">` + iconExpand() + `</button>`)
+	b.WriteString(`<a class="icon-btn" href="` + e(d.RawURL) + `" target="_blank" rel="noopener" data-tooltip="Pop out" aria-label="Pop out">` + iconPopOut() + `</a>`)
+	b.WriteString(`</div></header>`)
 	return b.String()
 }
 
@@ -132,7 +131,7 @@ func iconCollect() string {
 // quote are captured client-side from the same-origin iframe and submitted via
 // the JSON API; the page file itself is never touched.
 func commentPanelMarkup() string {
-	return `<div class="comment-panel" id="commentPanel" role="dialog" aria-modal="true" aria-labelledby="commentPanelTitle" aria-hidden="true">
+	return `<div class="comment-panel" id="commentPanel" role="dialog" aria-modal="true" aria-labelledby="commentPanelTitle" aria-hidden="true" inert>
   <div class="cp-head">
     <span class="cp-title" id="commentPanelTitle">Comment</span>
     <button class="icon-btn cp-close" id="commentClose" aria-label="Close comments" title="Close">` + iconClose() + `</button>
@@ -141,7 +140,7 @@ func commentPanelMarkup() string {
     <!-- List-first pane (default): review history + filters, compose is opt-in. -->
     <div class="cp-pane" id="cpListPane">
       <div class="cp-toolbar">
-        <div class="cp-filters" role="group" aria-label="Filter comments">
+        <div class="cp-filters" role="group" aria-label="Filter comments"><span class="cp-thumb" aria-hidden="true"></span>
           <button type="button" class="cp-chip" data-filter="open">Open</button>
           <button type="button" class="cp-chip" data-filter="done">Done</button>
           <button type="button" class="cp-chip" data-filter="all">All</button>
@@ -234,10 +233,10 @@ func changeTourMarkup() string {
 func pageViewCSS() string {
 	return `<style>
 :root{--bg:#eceff4;--surface:#fff;--surface2:#f6f8fb;--border:#d8dee9;--hair:#e5e9f0;
---text:#4c566a;--muted:#8891a0;--strong:#2e3440;--acc:#5e81ac;--acc-soft:#e0e7ff;
---ok:#4a7a2e;--ok-soft:#e6f0e6;--warn:#d08770;--warn-soft:#fadfd2;--arch:#8891a0;--arch-soft:#eceff4;
+--text:#4c566a;--muted:#5f6b7d;--strong:#2e3440;--acc:#466286;--acc-soft:#e0e7ff;
+--ok:#3f6d25;--ok-soft:#e6f0e6;--warn:#9c4f37;--warn-soft:#fadfd2;--arch:#5f6b7d;--arch-soft:#eceff4;
 --font:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
---rs:6px;--panelw:340px;--ease:cubic-bezier(.23,1,.32,1)}
+--rs:6px;--panelw:340px;--ease:cubic-bezier(.23,1,.32,1);--ease-in-out:cubic-bezier(.77,0,.175,1)}
 [data-theme="dark"]{
 --bg:#2e3440;--surface:#3b4252;--surface2:#434c5e;--border:#4c566a;--hair:#3b4252;
 --text:#d8dee9;--muted:#81a1c1;--strong:#eceff4;--acc:#88c0d0;--acc-soft:rgba(136,192,208,.18);
@@ -305,11 +304,13 @@ transition:transform .28s var(--ease),opacity .28s var(--ease)}
    compose pane shown only on demand. */
 .cp-pane[hidden]{display:none}
 .cp-toolbar{display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap}
-.cp-filters{display:flex;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px}
-.cp-chip{border:0;background:transparent;color:var(--muted);font:600 11px var(--font);padding:5px 10px;
-border-radius:999px;cursor:pointer;transition:background .1s,color .1s}
+.cp-filters{position:relative;display:flex;gap:4px;background:var(--surface2);border:1px solid var(--border);border-radius:999px;padding:3px}
+.cp-thumb{position:absolute;top:3px;bottom:3px;left:3px;width:0;border-radius:999px;background:var(--surface);box-shadow:0 1px 2px rgba(46,52,64,.12);will-change:transform}
+.cp-filters.thumb-ready .cp-thumb{transition:transform .18s var(--ease-in-out)}
+.cp-chip{border:0;background:transparent;color:var(--muted);position:relative;z-index:1;font:600 11px var(--font);padding:5px 10px;
+border-radius:999px;cursor:pointer;transition:color .1s}
 .cp-chip:hover{color:var(--strong)}
-.cp-chip.active{background:var(--surface);color:var(--strong);box-shadow:0 1px 2px rgba(46,52,64,.12)}
+.cp-chip.active{color:var(--strong)}
 .cp-newbtn{margin-left:auto;border:1px solid var(--border);background:var(--surface);color:var(--acc);
 border-radius:999px;padding:6px 12px;font:600 11.5px var(--font);cursor:pointer;white-space:nowrap;
 transition:background .1s,border-color .1s}
@@ -355,30 +356,54 @@ font:600 13px var(--font);cursor:pointer}
 .cp-list-head{margin:28px 0 12px;font:600 12px var(--font);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
 .cp-list{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:14px}
 .cp-item{border:1px solid var(--border);border-radius:var(--rs);padding:13px 15px;background:var(--surface2)}
-.cp-item-head{display:flex;align-items:center;gap:8px;margin-bottom:10px}
-.cp-item-type{font:600 10px var(--font);color:var(--acc);background:var(--acc-soft);border-radius:4px;padding:2px 6px;text-transform:uppercase}
-.cp-item-status{font:500 10px var(--font);color:var(--muted)}
+.cp-item.cp-item--done{border-style:dashed;border-color:var(--hair)}
+.cp-item-top{display:flex;align-items:flex-start;gap:10px}
+.cp-item-body{flex:1;min-width:0;font-size:13.5px;line-height:1.55;color:var(--text)}
+.cp-item--done .cp-item-body{color:var(--muted)}
+.cp-item-status{flex:none;display:inline-flex;align-items:center;gap:4px;margin-top:2px;color:var(--acc);font:600 10px var(--font);text-transform:uppercase;letter-spacing:.02em}
+.cp-item-status::before{content:'';width:6px;height:6px;border-radius:999px;background:currentColor}
 .cp-item-status.done{color:var(--ok)}
-.cp-item-body{font-size:13px;color:var(--text);line-height:1.6}
-.cp-item-quote{font-size:12px;font-style:italic;color:var(--muted);line-height:1.55;border-left:2px solid var(--border);padding:1px 0 1px 9px;margin-top:10px}
-/* List-item actions (HARB-34): anchor line + Jump/Edit/Done/Reply. */
-.cp-item-a{font-size:12px;color:var(--acc);background:var(--acc-soft);border-radius:4px;padding:3px 7px;margin-top:8px;overflow-wrap:anywhere}
+.cp-item-anchor{font-size:12px;color:var(--muted);margin-top:7px;overflow-wrap:anywhere}
+.cp-item--done .cp-item-anchor{opacity:.75}
+.cp-item-quote{font-size:12px;font-style:italic;color:var(--muted);line-height:1.55;margin-top:8px}
+/* List-item actions (HARB-34): Jump / Edit / Done / Reply. */
 .cp-item-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
 .cp-act{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:var(--rs);padding:4px 9px;font:600 11px var(--font);cursor:pointer;transition:color .1s,background .1s,border-color .1s}
+.cp-act.cp-act-go{color:var(--acc)}
+.cp-act.cp-act-go:hover{border-color:var(--acc)}
 .cp-act:hover{color:var(--strong);background:var(--surface2);border-color:var(--text)}
 .cp-replyto{margin:0 0 10px;font-size:12px;color:var(--muted);background:var(--surface2);border-radius:var(--rs);padding:8px 10px}
 .cp-replyto[hidden]{display:none}
 /* Collect mode (HARB-35): header toggle, floating pins bar. */
-#collectBtn.active{color:var(--acc);background:var(--acc-soft)}
-.cp-pins{position:fixed;left:16px;bottom:16px;z-index:80;display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:6px 6px 6px 12px;box-shadow:0 1px 3px rgba(46,52,64,.12)}
+/* Collect: unified selection-driven flow (picker cursor + N-spots chip). */
+.cp-pins{position:fixed;left:16px;bottom:16px;z-index:80;display:flex;align-items:center;gap:6px;background:var(--surface);border:1px solid var(--border);border-radius:999px;padding:6px 6px 6px 12px;box-shadow:0 1px 3px rgba(46,52,64,.12);opacity:0;transform:translateY(8px);transition:opacity .12s var(--ease),transform .12s var(--ease)}
+.cp-pins.cp-show{opacity:1;transform:translateY(0)}
 .cp-pins[hidden]{display:none}
+#cpInline{opacity:0;transform:scale(.95);transform-origin:bottom center;transition:opacity .15s var(--ease),transform .15s var(--ease)}
+#cpInline.show{opacity:1;transform:scale(1)}
+.pv-tooltip{position:fixed;z-index:70;padding:4px 10px;background:#2e3440;color:#f8fafc;font:500 12px var(--font);line-height:1.4;white-space:nowrap;border-radius:4px;pointer-events:none;opacity:0;transform:translateY(2px);transition:opacity .1s var(--ease),transform .1s var(--ease)}
+.pv-tooltip.show{opacity:1;transform:translateY(0)}
+.pv-tooltip-arrow{position:fixed;z-index:70;border:4px solid transparent;border-bottom-color:#2e3440;pointer-events:none;opacity:0;transition:opacity .1s var(--ease)}
+.pv-tooltip-arrow.show{opacity:1}
+.pv-toast{position:fixed;left:16px;bottom:56px;z-index:90;max-width:min(420px,calc(100vw - 32px));background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--rs);padding:9px 13px;font:500 12.5px var(--font);line-height:1.4;box-shadow:0 2px 10px rgba(46,52,64,.16);opacity:0;transform:translateY(4px);transition:opacity .14s var(--ease),transform .14s var(--ease)}
+.pv-toast.show{opacity:1;transform:translateY(0)}
 .cp-pins-count{font:600 12px var(--font);color:var(--strong);margin-right:2px}
 .cp-pins-clear,.cp-pins-post{border:1px solid var(--border);background:var(--surface);border-radius:999px;padding:5px 11px;font:600 11.5px var(--font);cursor:pointer;transition:background .1s,color .1s}
 .cp-pins-clear{color:var(--muted)}
 .cp-pins-clear:hover{color:var(--strong);background:var(--surface2)}
 .cp-pins-post{background:var(--acc);border-color:var(--acc);color:#fff}
 .cp-pins-post:hover{filter:brightness(.95)}
-.cp-empty{font-size:12.5px;color:var(--muted)}
+.cp-empty{font-size:12.5px;color:var(--muted);padding:26px 14px;text-align:center;line-height:1.55}
+.cp-empty-title{font-size:13.5px;font-weight:600;color:var(--strong);margin-bottom:5px}
+.cp-empty-note{margin:0 auto 12px;max-width:260px}
+.cp-empty-note b{color:var(--text)}
+.cp-empty-action{border:1px solid var(--border);background:var(--surface);color:var(--acc);border-radius:var(--rs);padding:6px 12px;font:600 12px var(--font);cursor:pointer;transition:background .1s,color .1s,border-color .1s}
+.cp-empty-action:hover{background:var(--acc-soft);border-color:var(--acc)}
+.cp-skeleton{border:1px solid var(--hair);border-radius:var(--rs);padding:13px 15px;background:var(--surface2);display:flex;flex-direction:column;gap:9px}
+.cp-skeleton span{display:block;height:9px;border-radius:4px;background:var(--hair)}
+.cp-skeleton span:nth-child(2){width:72%}
+.cp-skeleton span:nth-child(3){width:45%}
+.cp-empty-err .cp-empty-action{margin-top:2px}
 /* ── What-changed walkthrough ──
    Styled to match the shell's flat Nord surfaces (comment panel + header):
    --surface body, --border edge, --hair dividers, --rs radius, subtle shadow,
@@ -431,6 +456,11 @@ transition:background-color .1s,color .1s,border-color .1s,transform 120ms cubic
 [data-theme="dark"] .cf-btn{box-shadow:0 2px 8px rgba(0,0,0,.32),inset 0 1px 0 rgba(236,239,244,.06)}
 @media(prefers-reduced-motion:reduce){.comment-panel{transition:opacity .18s ease;transform:none}
 .comment-panel.open{transform:none}
+.cp-pins{transition:none;transform:none}
+#cpInline{transition:none;transform:none}
+.pv-toast{transition:none;transform:none}
+.cp-filters.thumb-ready .cp-thumb{transition:none}
+.pv-tooltip,.pv-tooltip-arrow{transition:none;transform:none}
 }
 @media(max-width:680px){.comment-panel{width:100%;max-width:100vw}}
 </style>`

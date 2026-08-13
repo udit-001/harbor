@@ -73,10 +73,10 @@ func libraryShell(data LibraryData) string {
 	var b strings.Builder
 	b.WriteString(`<div class="app">`)
 	b.WriteString(librarySidebar(data))
-	b.WriteString(`<div class="main">`)
+	b.WriteString(`<main class="main">`)
 	b.WriteString(libraryTopbar(data))
 	b.WriteString(libraryContent(data))
-	b.WriteString(`</div></div>`)
+	b.WriteString(`</main></div>`)
 	return b.String()
 }
 
@@ -129,7 +129,7 @@ func libraryTopbar(data LibraryData) string {
 	// title ("All pages") is the single location label and lives here in the
 	// topbar (with the count beside it), not duplicated in the body. The status
 	// filter is a pill switch next to the title; the search box rides right.
-	return `<div class="topbar"><div class="title">All pages<span class="count">` + fmt.Sprintf("%d", data.Total) + ` pages</span></div>` + libraryStatusSeg(data.Filter.Status) + `<div class="search"><input id="q" type="search" placeholder="Search pages…" aria-label="Search pages"` + searchVal + `></div><button id="theme-toggle" type="button" class="theme-toggle" title="Toggle theme" aria-label="Toggle theme">
+	return `<div class="topbar"><h1 class="title">All pages<span class="count">` + fmt.Sprintf("%d", data.Total) + ` pages</span></h1>` + libraryStatusSeg(data.Filter.Status) + `<div class="search"><input id="q" type="search" placeholder="Search pages…" aria-label="Search pages"` + searchVal + `></div><button id="theme-toggle" type="button" class="theme-toggle" title="Toggle theme" aria-label="Toggle theme">
 <svg class="moon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
 <svg class="sun" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
 </button></div>`
@@ -156,7 +156,7 @@ func libraryStatusSeg(active string) string {
 		{"", "All"}, {draft, "Draft"}, {pub, "Published"}, {arch, "Archived"},
 	}
 	var b strings.Builder
-	b.WriteString(`<div class="status-seg">`)
+	b.WriteString(`<div class="status-seg"><span class="seg-thumb" aria-hidden="true"></span>`)
 	for _, it := range items {
 		cls := ""
 		if active == it.val {
@@ -282,8 +282,10 @@ func libraryScript(data LibraryData) string {
     if(!ready){ return; }
     var rows=filtered();
     countEl.textContent=rows.length+' pages';
-    if(!rows.length){ listEl.innerHTML=emptyHTML(ALL.length===0); bindClear(); return; }
-    listEl.innerHTML=rows.map(rowHTML).join('');
+    if(!rows.length){ listEl.innerHTML=emptyHTML(ALL.length===0); bindClear(); }
+    else { listEl.innerHTML=rows.map(rowHTML).join(''); }
+    // Brief fade-in so filter/search/clear don't teleport the whole list.
+    listEl.classList.remove('swap'); void listEl.offsetWidth; listEl.classList.add('swap');
   }
   function bindClear(){
     var b=document.getElementById('clear-filters');
@@ -306,7 +308,24 @@ func libraryScript(data LibraryData) string {
     input.value=state.q;
     render();
     updateActive();
+    moveThumb();
   }
+  // Sliding active thumb for the status pills: the selected pill's highlight
+  // glides to the active tab via a composited transform (interruptible, no
+  // width/layout animation). Enabled after the first paint so the initial
+  // position doesn't animate on load.
+  var segEl=document.querySelector('.status-seg');
+  var thumb=segEl&&segEl.querySelector('.seg-thumb');
+  var segPad=3;
+  function moveThumb(){
+    if(!segEl||!thumb) return;
+    var a=segEl.querySelector('a.active')||segEl.querySelector('a');
+    if(!a) return;
+    thumb.style.width=a.offsetWidth+'px';
+    thumb.style.transform='translateX('+(a.offsetLeft-segPad)+'px)';
+  }
+  if(segEl){ moveThumb(); segEl.classList.add('thumb-ready'); }
+  window.addEventListener('resize',function(){ if(segEl) moveThumb(); });
 
   // Status pills (topbar switch) — client-side.
   var pills=document.querySelectorAll('.status-seg a');
@@ -371,11 +390,11 @@ func logo() string {
 func libraryCSS() string {
 	return `<style>
 :root{--bg:#eceff4;--surface:#fff;--surface2:#f6f8fb;--border:#d8dee9;--hair:#e5e9f0;
---text:#4c566a;--muted:#8891a0;--strong:#2e3440;--acc:#5e81ac;--acc-soft:#e0e7ff;
---ok:#4a7a2e;--ok-soft:#e6f0e6;--warn:#d08770;--warn-soft:#fadfd2;--arch:#8891a0;--arch-soft:#eceff4;
+--text:#4c566a;--muted:#5f6b7d;--strong:#2e3440;--acc:#466286;--acc-soft:#e0e7ff;
+--ok:#3f6d25;--ok-soft:#e6f0e6;--warn:#9c4f37;--warn-soft:#fadfd2;--arch:#5f6b7d;--arch-soft:#eceff4;
 --chip:rgba(0,0,0,.05);
 --font:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
---r:8px;--rs:6px;--ease:cubic-bezier(.23,1,.32,1)}
+--r:8px;--rs:6px;--ease:cubic-bezier(.23,1,.32,1);--ease-in-out:cubic-bezier(.77,0,.175,1)}
 [data-theme="dark"]{
 --bg:#2e3440;--surface:#3b4252;--surface2:#434c5e;--border:#4c566a;--hair:#3b4252;
 --text:#d8dee9;--muted:#81a1c1;--strong:#eceff4;--acc:#88c0d0;--acc-soft:rgba(136,192,208,.18);
@@ -391,9 +410,10 @@ a{text-decoration:none;color:inherit}
 .brand svg{color:var(--acc)}
 .nav{display:flex;flex-direction:column;gap:2px;flex:1;min-height:0;overflow-y:auto}
 .sec{padding:14px 8px 6px;font-size:11px;letter-spacing:.04em;color:var(--muted);font-weight:600}
-.link{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--rs);color:var(--text);font-size:14px}
+.link{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--rs);color:var(--text);font-size:14px;transition:background .1s,color .1s,transform 120ms var(--ease)}
 .link:hover{background:var(--surface2)}
 .link.active{background:var(--acc-soft);color:var(--acc);font-weight:600}
+.link:active{transform:scale(.97)}
 .link .ic{width:16px;height:16px;color:var(--muted);flex:none;display:inline-flex;align-items:center;justify-content:center}
 .link .cnt{margin-left:auto;font-size:11px;color:var(--muted);background:var(--chip);border-radius:999px;padding:0 7px}
 .main{min-width:0;height:100vh;display:flex;flex-direction:column;overflow:hidden}
@@ -402,23 +422,35 @@ a{text-decoration:none;color:inherit}
 .topbar .title .count{color:var(--muted);font:400 12.5px var(--font)}
 .search{flex:1;max-width:460px;margin-left:auto}
 .search input{width:100%;padding:5px 12px;border:1px solid var(--border);border-radius:var(--rs);
-background:var(--bg);font:400 14px var(--font);color:var(--text);outline:none}
+background:var(--bg);font:400 14px var(--font);color:var(--text);outline:none;transition:border-color .1s}
 .search input:focus{border-color:var(--acc)}
-.theme-toggle{flex:none;display:grid;place-items:center;width:32px;height:32px;border:1px solid var(--border);
-background:var(--surface);color:var(--muted);border-radius:var(--rs);cursor:pointer;transition:color .12s}
+:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+.link:focus-visible,.row:focus-visible,.status-seg a:focus-visible,.clear:focus-visible,.theme-toggle:focus-visible{border-radius:var(--rs)}
+.theme-toggle{flex:none;position:relative;width:32px;height:32px;border:1px solid var(--border);
+background:var(--surface);color:var(--muted);border-radius:var(--rs);cursor:pointer;transition:color .12s,transform 120ms var(--ease)}
 .theme-toggle:hover{color:var(--strong)}
-.theme-toggle svg{display:none}
-[data-theme="dark"] .theme-toggle .sun{display:block}
-[data-theme="light"] .theme-toggle .moon{display:block}
+.theme-toggle:active{transform:scale(.97)}
+.theme-toggle svg{position:absolute;inset:0;margin:auto;pointer-events:none;transition:opacity .15s ease-out,transform .15s ease-out}
+[data-theme="dark"] .theme-toggle .sun{opacity:1;transform:rotate(0)}
+[data-theme="light"] .theme-toggle .moon{opacity:1;transform:rotate(0)}
+[data-theme="dark"] .theme-toggle .moon{opacity:0;transform:scale(.4) rotate(-90deg)}
+[data-theme="light"] .theme-toggle .sun{opacity:0;transform:scale(.4) rotate(90deg)}
 .body{flex:1;min-height:0;overflow-y:auto;padding:22px 24px 60px}
-.status-seg{flex:none;display:flex;align-items:center;gap:2px;margin-left:24px;background:var(--bg);
+.status-seg{position:relative;flex:none;display:flex;align-items:center;gap:2px;margin-left:24px;background:var(--bg);
 border:1px solid var(--border);border-radius:999px;padding:3px}
-.status-seg a{font:600 12.5px var(--font);color:var(--muted);padding:5px 14px;border-radius:999px;white-space:nowrap;transition:background .12s,color .12s}
+.seg-thumb{position:absolute;top:3px;bottom:3px;left:3px;width:0;border-radius:999px;background:var(--surface);
+box-shadow:0 1px 2px rgba(0,0,0,.08);will-change:transform}
+.status-seg.thumb-ready .seg-thumb{transition:transform .18s var(--ease-in-out)}
+.status-seg a{position:relative;z-index:1;font:600 12.5px var(--font);color:var(--muted);padding:5px 14px;border-radius:999px;white-space:nowrap;transition:color .12s,transform 120ms var(--ease)}
 .status-seg a:hover{color:var(--strong)}
-.status-seg a.active{background:var(--surface);color:var(--acc);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.status-seg a:active{transform:scale(.97)}
+.status-seg a.active{color:var(--acc)}
 .list{margin-top:4px}
-.row{display:flex;align-items:center;gap:14px;padding:14px 12px;border-bottom:1px solid var(--hair);border-radius:var(--rs);cursor:pointer}
+@keyframes listfade{from{opacity:0}to{opacity:1}}
+.list.swap{animation:listfade 130ms var(--ease)}
+.row{display:flex;align-items:center;gap:14px;padding:14px 12px;border-bottom:1px solid var(--hair);border-radius:var(--rs);cursor:pointer;transition:background .1s,transform 120ms var(--ease)}
 .row:hover{background:var(--surface2)}
+.row:active{transform:scale(.985)}
 .row .grow{min-width:0;flex:1}
 .row .t{display:flex;align-items:center;gap:9px}
 .row .name{font-weight:600;color:var(--strong);font-size:14.5px}
@@ -439,8 +471,9 @@ border:1px solid var(--border);border-radius:999px;padding:3px}
 .empty code{background:var(--bg);border:1px solid var(--hair);border-radius:var(--rs);padding:9px 14px;display:inline-block;
 font:500 12.5px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text)}
 .clear{display:inline-block;font:600 12.5px var(--font);color:var(--acc);background:var(--surface);
-border:1px solid var(--border);border-radius:var(--rs);padding:7px 14px;cursor:pointer}
+border:1px solid var(--border);border-radius:var(--rs);padding:7px 14px;cursor:pointer;transition:color .1s,transform 120ms var(--ease)}
 .clear:hover{color:var(--strong)}
-@media(prefers-reduced-motion:reduce){*{transition:none}}
+.clear:active{transform:scale(.97)}
+@media(prefers-reduced-motion:reduce){*{transition:none}.list.swap{animation:none}.link:active,.row:active,.status-seg a:active,.theme-toggle:active,.clear:active{transform:none}}
 </style>`
 }

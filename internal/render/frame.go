@@ -45,10 +45,14 @@ func sidebarSection(icon, label, sectionID, itemsHTML string, count int, section
 	if count > 0 {
 		countHTML = ` <span class="sidebar-section-count">` + fmt.Sprintf("%d", count) + `</span>`
 	}
+	expandedAttr := `aria-expanded="true"`
+	if !sectionActive {
+		expandedAttr = `aria-expanded="false"`
+	}
 	return `<div class="sidebar-section">` +
-		`<div class="sidebar-section-label" data-tooltip="` + esc(label) + `" data-section="` + sectionID + `" onclick="toggleSection(this)">` +
+		`<div class="sidebar-section-label" data-tooltip="` + esc(label) + `" data-section="` + sectionID + `" role="button" tabindex="0" ` + expandedAttr + ` onclick="toggleSection(this)">` +
 		chevron + icon + `<span>` + esc(label) + countHTML + `</span></div>` +
-		`<div class="sidebar-section-items` + collapsed + `">` + itemsHTML + `</div></div>`
+		`<div class="sidebar-section-items` + collapsed + `"><div class="sidebar-section-items-inner">` + itemsHTML + `</div></div></div>`
 }
 
 func sidebarBody(f Frame) string {

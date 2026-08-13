@@ -1,4 +1,3 @@
-
 (function(){
   const slug=document.body.dataset.slug;
   const KEY='harbor_view_v2_'+slug; // v2: collapsed (container) is the default; ignores pre-v2 saved "full"
@@ -40,4 +39,30 @@
     w.addEventListener('mousemove', function(e){ if(e.clientY<PEEK) show(); else hide(); }, true);
   }
   wireFrame();
+
+  // Pharos-style tooltips on the header icon buttons (back / prev / next /
+  // collect / comment / view-mode / pop-out / theme). Dark pill with an arrow,
+  // appearing below the icon. Uses data-tooltip so it never duplicates the
+  // native title (kept only on genuinely-disabled controls).
+  var pvTip=null, pvTipArrow=null;
+  function pvTipEls(){
+    if(!pvTip){ pvTip=document.createElement('div'); pvTip.className='pv-tooltip'; document.body.appendChild(pvTip);
+      pvTipArrow=document.createElement('div'); pvTipArrow.className='pv-tooltip-arrow'; document.body.appendChild(pvTipArrow); }
+    return [pvTip, pvTipArrow];
+  }
+  function hidePvTips(){ if(pvTip){ pvTip.classList.remove('show'); pvTipArrow.classList.remove('show'); } }
+  document.querySelectorAll('.pv [data-tooltip]').forEach(function(el){
+    el.addEventListener('mouseenter', function(){
+      const [t,a]=pvTipEls();
+      t.textContent=el.getAttribute('data-tooltip');
+      const r=el.getBoundingClientRect();
+      t.style.left=(r.left+r.width/2 - t.offsetWidth/2)+'px';
+      t.style.top=(r.bottom+8)+'px';
+      a.style.left=(r.left+r.width/2)+'px';
+      a.style.top=(r.bottom+4)+'px';
+      void t.offsetWidth; t.classList.add('show'); a.classList.add('show');
+    });
+    el.addEventListener('mouseleave', hidePvTips);
+  });
+  document.addEventListener('scroll', hidePvTips, true);
 })();

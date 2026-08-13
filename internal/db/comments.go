@@ -251,7 +251,7 @@ func (s *Store) ListComments(filter CommentFilter) ([]CommentView, error) {
 	if len(where) > 0 {
 		q += " WHERE " + strings.Join(where, " AND ")
 	}
-	q += " ORDER BY c.created_at ASC, c.id ASC"
+	q += " ORDER BY c.created_at DESC, c.id DESC"
 
 	rows, err := s.db.Query(q, args...)
 	if err != nil {
