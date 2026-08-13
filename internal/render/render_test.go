@@ -23,6 +23,9 @@ func TestPageViewHasCommentPanel(t *testing.T) {
 		`id="cpComposePane"`,         // compose pane is separate/opt-in
 		`id="cpNew"`,                 // "New comment" entry
 		`data-filter`,                // Open/Done/All filter chips
+		`id="cpInline"`,              // inline compose box (HARB-32)
+		`id="cpInlineBody"`,          // inline compose textarea
+		`css/app.css`,                // Tailwind utilities seeded onto the page view
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("page view missing %q", want)

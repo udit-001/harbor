@@ -32,6 +32,7 @@ func PageView(d PageViewData) string {
 	b.WriteString(`<meta name="viewport" content="width=device-width, initial-scale=1">`)
 	b.WriteString(`<title>` + esc(d.Title) + ` — harbor</title>`)
 	b.WriteString(`<script>(function(){try{var t=localStorage.getItem('harbor_theme');if(!t||t==='system'){t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.dataset.theme=t}catch(e){document.documentElement.dataset.theme='light'}})();</script>`)
+	b.WriteString(`<link rel="stylesheet" href="/css/app.css?v=21">`) // Tailwind utilities for new pageview markup (HARB-32 seed)
 	b.WriteString(pageViewCSS())
 	b.WriteString(`</head><body data-slug="` + e(d.Slug) + `">`)
 	b.WriteString(pageViewHeader(d))
@@ -203,9 +204,27 @@ func commentPanelMarkup() string {
       </form>
     </div>
   </div>
+</div>
+<!-- Inline compose box (HARB-32): a docked shell box for anchored comments,
+     positioned over the anchor; stays put while typing. Whole-doc compose
+     stays in the drawer. Uses Tailwind utilities (app.css) — pageview CSS
+     seeding (HARB-15/32). -->
+<div class="fixed z-50 w-72 max-w-[92vw] overflow-hidden rounded-md border border-[var(--border)] bg-[var(--surface)] shadow-[0_1px_2px_rgba(46,52,64,.06),0_6px_16px_-4px_rgba(46,52,64,.16),0_20px_44px_-14px_rgba(46,52,64,.26)]" id="cpInline" role="dialog" aria-label="Comment" aria-hidden="true" hidden>
+  <div class="flex items-center gap-2 border-b border-[var(--hair)] px-4 py-3">
+    <span class="text-[13px] font-semibold text-[var(--strong)]" id="cpInlineTitle">Comment</span>
+    <span class="flex-1 truncate text-[11px] text-[var(--muted)]" id="cpInlineWhere"></span>
+    <button type="button" class="icon-btn ml-auto" id="cpInlineClose" aria-label="Discard comment" title="Cancel">` + iconClose() + `</button>
+  </div>
+  <div class="p-4">
+    <textarea id="cpInlineBody" rows="3" required placeholder="Tell the agent what to change…" class="min-h-[72px] w-full resize-y rounded border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-[13px] leading-6 text-[var(--text)] outline-none focus:outline-2 focus:outline-[var(--acc)]"></textarea>
+    <div class="mt-1 text-[12.5px] text-[var(--warn)]" id="cpInlineError" role="alert"></div>
+    <div class="mt-2 flex items-center justify-end gap-2">
+      <button type="button" class="cursor-pointer rounded border border-[var(--border)] px-4 py-2 text-[12.5px] font-semibold text-[var(--text)] hover:bg-[var(--surface2)]" id="cpInlineCancel">Cancel</button>
+      <button type="button" class="cursor-pointer rounded bg-[var(--acc)] px-4 py-2 text-[12.5px] font-semibold text-white hover:brightness-95" id="cpInlinePost">Post comment</button>
+    </div>
+  </div>
 </div>`
 }
-
 func iconClose() string {
 	return `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>`
 }
@@ -432,6 +451,60 @@ func commentPanelScript(slug string) string {
   newBtn.addEventListener('click',function(){ resetCompose(); showView('compose'); body.focus(); });
   cancelBtn.addEventListener('click',function(){ showView('list'); loadList(); });
   refreshChips();
+
+  // ── Inline compose box (HARB-32) ────────────────────────────────────
+  // Anchored comments compose in a docked shell box over the anchor (drawer
+  // stays closed; whole-doc compose stays in the drawer). Stays put while
+  // typing; Cancel/Escape/outside-click discards with no draft.
+  const inlineBox=document.getElementById('cpInline');
+  const inlineBody=document.getElementById('cpInlineBody');
+  const inlineErr=document.getElementById('cpInlineError');
+  const inlineWhere=document.getElementById('cpInlineWhere');
+  const inlinePost=document.getElementById('cpInlinePost');
+  const inlineCancel=document.getElementById('cpInlineCancel');
+  const inlineClose=document.getElementById('cpInlineClose');
+  function mapStateAnchor(){ return {kind:state.type==='selection'?'text':(state.type==='element'?'element':'document'), path:state.anchor, quote:state.quote}; }
+  function inlineResolved(){ return window.harborResolveAnchor ? window.harborResolveAnchor(mapStateAnchor()) : null; }
+  function positionInline(){
+    var r=inlineResolved(); if(!r||!r.el) return false;
+    var fr=frame.getBoundingClientRect(), er=r.el.getBoundingClientRect();
+    var tx=fr.left+er.left, ty=fr.top+er.top;
+    var cw=inlineBox.offsetWidth||288, ch=inlineBox.offsetHeight||212, margin=12;
+    var left=Math.max(8,Math.min(tx+er.width/2-cw/2, window.innerWidth-cw-8));
+    inlineBox.style.top=''; inlineBox.style.left='';
+    if(ty>ch+margin){ inlineBox.style.top=(ty-ch-margin)+'px'; }
+    else { inlineBox.style.top=(ty+er.height+margin)+'px'; }
+    inlineBox.style.left=left+'px';
+    return true;
+  }
+  function showInline(){
+    if(!state.anchor && state.type!=='element') return; // needs an anchor
+    if(window.harborModes) window.harborModes.set('comment');
+    hideAfford();
+    inlineErr.hidden=true; inlineErr.textContent='';
+    inlineWhere.textContent=state.quote||state.anchor||'whole page';
+    inlineBox.hidden=false; inlineBox.setAttribute('aria-hidden','false');
+    positionInline(); // stays put; does not follow on scroll
+    inlineBody.focus();
+  }
+  function hideInline(){ inlineBox.hidden=true; inlineBox.setAttribute('aria-hidden','true'); }
+  function cancelInline(){
+    hideInline(); resetCompose();
+    if(window.harborModes && window.harborModes.get()==='comment') window.harborModes.set('reader');
+  }
+  function postInline(){
+    var text=inlineBody.value.trim(); if(!text) return;
+    inlineErr.hidden=true; inlinePost.disabled=true;
+    fetch(LIST_URL,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({type:state.type,anchor:state.anchor,quote:state.quote,body:text})})
+      .then(function(r){ if(!r.ok) return r.json().then(function(j){ return Promise.reject(j&&j.error); }).catch(function(){ return Promise.reject('could not save comment ('+r.status+')'); }); return r.json(); })
+      .then(function(){ hideInline(); resetCompose(); dropPickStyle(); setOpen(true); bumpOpenFb(); }) // drawer opens to the list so it lands visibly
+      .catch(function(m){ inlineErr.textContent=m; inlineErr.hidden=false; })
+      .finally(function(){ inlinePost.disabled=false; });
+  }
+  inlinePost.addEventListener('click',postInline);
+  inlineCancel.addEventListener('click',cancelInline);
+  inlineClose.addEventListener('click',cancelInline);
   const clearBtn=document.getElementById('cpClear');
   const LIST_URL='/api/pages/'+encodeURIComponent(slug)+'/comments';
 
@@ -600,12 +673,12 @@ func commentPanelScript(slug string) string {
   function hideAfford(){ doneCommentIntent(); if(afford&&afford.parentNode){ afford.parentNode.removeChild(afford); afford=null; } }
   function doneCommentIntent(){ pendingComment=null; }
   function openCommentFromSelection(){
-    if(pendingComment){ const p=pendingComment; hideAfford(); state={type:'selection',anchor:p.anchor,quote:p.quote}; renderState(); openCompose(); return; }
+    if(pendingComment){ const p=pendingComment; hideAfford(); state={type:'selection',anchor:p.anchor,quote:p.quote}; renderState(); showInline(); return; }
     // Fallback: read a still-live selection if the pill's captured snapshot is gone.
     const w=frame.contentWindow, sel=w&&w.getSelection(); const text=sel?sel.toString().trim():'';
     if(!text) return;
     const an=sel.anchorNode; const el=an?(an.nodeType===1?an:an.parentElement):null;
-    hideAfford(); state={type:'selection',anchor:cssPath(el),quote:text}; renderState(); openCompose();
+    hideAfford(); state={type:'selection',anchor:cssPath(el),quote:text}; renderState(); showInline();
   }
   function clearHover(){ if(hoverEl){ hoverEl.classList.remove('cp-hover'); hoverEl=null; } }
   function clearAnchored(){ if(anchoredEl){ anchoredEl.classList.remove('cp-anchored'); anchoredEl=null; } }
@@ -638,7 +711,7 @@ func commentPanelScript(slug string) string {
   }
   btn.addEventListener('click',toggleOpen);
   close.addEventListener('click',()=>setOpen(false));
-  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ if(open) setOpen(false); else hideAfford(); } });
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ if(open) setOpen(false); else if(!inlineBox.hidden) cancelInline(); else hideAfford(); } });
 
   // Update the preview UI from state. The Clear affordance is offered only
   // while a selection/element target is captured (anchor is set).
@@ -710,7 +783,7 @@ func commentPanelScript(slug string) string {
     if(!doc) return;
     // Forward Escape from inside the page: focus lives in the iframe after a
     // selection/pick, and its keydown never reaches the shell document.
-    doc.addEventListener('keydown',(ev)=>{ if(ev.key==='Escape'){ if(open) setOpen(false); else hideAfford(); } },true);
+    doc.addEventListener('keydown',(ev)=>{ if(ev.key==='Escape'){ if(open) setOpen(false); else if(!inlineBox.hidden) cancelInline(); else hideAfford(); } },true);
     doc.addEventListener('mouseup',(ev)=>{
       const win=frame.contentWindow, sel=win&&win.getSelection();
       const text=sel?sel.toString().trim():'';
@@ -730,16 +803,17 @@ func commentPanelScript(slug string) string {
       if(text && sel && !sel.isCollapsed) showAfford(); else hideAfford();
     },true);
     // Dismiss the affordance on any other interaction inside the page.
-    doc.addEventListener('mousedown',()=>hideAfford(),true);
+    doc.addEventListener('mousedown',()=>{ hideAfford(); if(!inlineBox.hidden) cancelInline(); },true);
     doc.addEventListener('scroll',()=>hideAfford(),true);
     doc.addEventListener('selectionchange',()=>{ const s=frame.contentWindow&&frame.contentWindow.getSelection(); if(!s||s.isCollapsed) hideAfford(); });
     doc.addEventListener('mousemove',trackHover,true);
     doc.addEventListener('click',(ev)=>{
       if(!canPickElement()) return;
       if(hasTextSelection()) return; // a drag-selection just became a quote; don't override it
+      setOpen(false); // anchored compose is inline; drop the drawer
       state={type:'element',anchor:cssPath(ev.target),quote:''};
       renderState();
-      showView('compose'); // panel is already open; drop into the compose pane
+      showInline();
     },true);
   }
   frame.addEventListener('load',wire);
@@ -747,8 +821,9 @@ func commentPanelScript(slug string) string {
   // When the cursor leaves the page (into the panel, header, or beyond) stop
   // the candidate highlight — the pointer is no longer over a pickable element.
   frame.addEventListener('mouseleave',clearHover);
-  // Clicking anywhere in the shell chrome (header, panel) dismisses the affordance.
-  document.addEventListener('mousedown',(e)=>{ if(e.target!==afford) hideAfford(); },true);
+  // Clicking anywhere in the shell chrome (or outside the inline box while it's
+  // open) dismisses the affordance / discards the inline draft (HARB-23).
+  document.addEventListener('mousedown',(e)=>{ if(e.target!==afford && !(inlineBox&&inlineBox.contains(e.target))){ hideAfford(); if(!inlineBox.hidden) cancelInline(); } },true);
 
   // Submit the pending comment.
   form.addEventListener('submit',(e)=>{
@@ -912,7 +987,13 @@ border-radius:var(--rs);background:var(--surface);color:var(--text);padding:10px
 font:400 13px var(--font);line-height:1.6}
 .cp-body textarea:focus-visible,.cp-close:focus-visible,.cp-submit:focus-visible,
 .cp-row select:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
-.cp-actions{display:flex;justify-content:flex-end;padding-top:2px}
+.cp-actions{display:flex;align-items:center;justify-content:flex-end;gap:8px;padding-top:2px}
+.cp-pill{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:var(--rs);
+padding:8px 16px;font:600 13px var(--font);cursor:pointer;
+transition:background-color .1s,color .1s,border-color .1s,transform 120ms cubic-bezier(.23,1,.32,1)}
+.cp-pill:hover{background:var(--surface2);border-color:var(--text)}
+.cp-pill:active:not(:disabled){transform:scale(.97)}
+.cp-pill:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
 .cp-submit{border:0;border-radius:var(--rs);background:var(--acc);color:#fff;padding:9px 18px;
 font:600 13px var(--font);cursor:pointer}
 .cp-submit:hover{filter:brightness(.96)}
