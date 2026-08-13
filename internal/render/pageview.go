@@ -44,7 +44,16 @@ func PageView(d PageViewData) string {
 	if ctx, cerr := json.Marshal(struct {
 		Slug      string `json:"slug"`
 		Workspace string `json:"workspace"`
-	}{Slug: d.Slug, Workspace: d.Workspace}); cerr == nil {
+		Live      struct {
+			Topic string `json:"topic"`
+			Mode  string `json:"mode"`
+			Slug  string `json:"slug"`
+		} `json:"live"`
+	}{Slug: d.Slug, Workspace: d.Workspace, Live: struct {
+		Topic string `json:"topic"`
+		Mode  string `json:"mode"`
+		Slug  string `json:"slug"`
+	}{Topic: "workspace:" + d.Workspace, Mode: "workspace", Slug: d.Slug}}); cerr == nil {
 		b.WriteString(`<script>window.__harbor=`)
 		b.WriteString(string(ctx))
 		b.WriteString(`;</script>` + "\n")
@@ -53,10 +62,7 @@ func PageView(d PageViewData) string {
 	b.WriteString(`<script>` + pageviewAnnotationsJS + `</script>` + "\n")
 	b.WriteString(`<script>` + pageviewTourJS + `</script>` + "\n")
 	if d.Workspace != "" {
-		// Live-sync: reload this page's iframe (preserving scroll) when its
-		// content changes, and follow agent-driven navigation. Reads the
-		// workspace/slug from the window.__harbor seam.
-		b.WriteString(`<script>` + pageviewLiveSyncJS + `</script>` + "\n")
+		b.WriteString(`<script>` + harborLiveSyncJS + `</script>` + "\n")
 	}
 	b.WriteString(`</body></html>`)
 	return b.String()

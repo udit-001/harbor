@@ -16,5 +16,5 @@ var pageviewAnnotationsJS string
 //go:embed pageview-shell.js
 var pageviewShellJS string
 
-//go:embed pageview-livesync.js
-var pageviewLiveSyncJS string
+//go:embed harbor-livesync.js
+var harborLiveSyncJS string

@@ -359,7 +359,9 @@ func libraryScript(data LibraryData) string {
   // Live-sync hook: refetch the full dataset and re-apply the current filters.
   window.__harborReload=function(){ fetch('/api/pages').then(function(r){return r.json();}).then(function(list){ ALL=Array.isArray(list)?list:[]; ready=true; apply(); }).catch(function(){}); };
 })();
-</script>` + liveSyncScript("home", `{ changed: function(){ if(window.__harborReload) window.__harborReload(); } }`) + `</body></html>`
+</script>` + `
+<script>window.__harbor={live:{topic:'home',mode:'library'}};</script>` + `
+<script>` + harborLiveSyncJS + `</script>` + `</body></html>`
 }
 
 func logo() string {
