@@ -207,7 +207,7 @@ func changeTourMarkup() string {
 	return `<div class="cf">
   <button type="button" class="cf-btn" id="cfBtn" hidden aria-label="What changed" title="What changed"><i></i>What changed</button>
   <div class="cf-card" id="cfCard" role="dialog" aria-label="What changed" aria-hidden="true" hidden>
-    <div class="cf-head"><span class="cf-step" id="cfStep"></span><button type="button" class="icon-btn cf-close" id="cfClose" aria-label="Close what-changed" title="Close">` + iconClose() + `</button></div>
+    <div class="cf-head" id="cfHead"><span class="cf-step" id="cfStep"></span><button type="button" class="icon-btn cf-close" id="cfClose" aria-label="Close what-changed" title="Close">` + iconClose() + `</button></div>
     <div class="cf-body"><div class="cf-title" id="cfTitle"></div><div class="cf-desc" id="cfDesc"></div></div>
     <div class="cf-actions">
       <button type="button" class="cf-pill" id="cfPrev">Prev</button>
@@ -239,6 +239,7 @@ func changeTourScript(slug string) string {
   const nextBtn=document.getElementById('cfNext');
   const doneBtn=document.getElementById('cfDone');
   const closeBtn=document.getElementById('cfClose');
+  const headEl=document.getElementById('cfHead');
   const LIST_URL='/api/pages/'+encodeURIComponent(slug)+'/changes';
   const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
   let all=[], matched=[], idx=-1, iframeReady=false;
@@ -264,7 +265,21 @@ func changeTourScript(slug string) string {
   function render(){
     if(idx<0||idx>=matched.length) return;
     const s=matched[idx];
-    stepEl.textContent='Change '+(idx+1)+' of '+matched.length;
+    const single=matched.length<=1;
+    // A single change has no Prev/Next destination, so neither the step counter
+    // nor the two nav buttons have anything to do (layers-interaction-flow:
+    // keep-it-minimal + every-affordance-has-a-named-destination). Dropping them
+    // avoids dead affordances; the card is just the change + Done/close. For
+    // multiple changes the boundary state stays *disabled* instead of hidden so
+    // the button row never shifts mid-tour while still signalling start/end.
+    stepEl.hidden = single;
+    if(!single) stepEl.textContent='Change '+(idx+1)+' of '+matched.length;
+    prevBtn.hidden = single;
+    nextBtn.hidden = single;
+    // Hiding just the step leaves a hollow header bar around the lone close
+    // button; drop the whole header so a single change renders as a clean
+    // title + description + Done card (Done is its own close affordance).
+    headEl.hidden = single;
     titleEl.textContent=s.change.title||s.change.changeId;
     descEl.textContent=s.change.description||(s.el?('Marked element: '+s.change.changeId):'');
     clearHl();
@@ -272,11 +287,52 @@ func changeTourScript(slug string) string {
       injectStyle(); hlEl=s.el; s.el.classList.add('cf-hl');
       try{ s.el.scrollIntoView(REDUCED?{block:'center'}:{behavior:'smooth',block:'center'}); }catch(_){ try{s.el.scrollIntoView();}catch(_2){} }
     }
+    positionCard();
+    // Smooth scroll is async; re-settle the card after it lands so the tooltip
+    // stays parked on the marker rather than floating where it started.
+    if(!REDUCED) setTimeout(positionCard, 350);
     prevBtn.disabled=(idx===0);
     nextBtn.disabled=(idx===matched.length-1);
   }
+  // intro.js-style element anchoring. The marker lives inside the same-origin
+  // iframe, so its viewport rect in that document is translated by the iframe's
+  // own rect to get shell-viewport coordinates. The card parks above the marker
+  // (arrow pointing down at it); below when there isn't room. Horizontally it
+  // centers on the marker and clamps to the viewport. No translateX trickery —
+  // left/top are set in px every render.
+  function positionCard(){
+    card.classList.remove('cf-card--below');
+    if(idx<0||idx>=matched.length) return;
+    const el=matched[idx].el;
+    if(!el){ card.style.left='16px'; card.style.top=''; card.style.bottom='16px'; card.style.right=''; return; }
+    let fr,er;
+    try{ fr=frame.getBoundingClientRect(); er=el.getBoundingClientRect(); }catch(_){ return; }
+    const tx=fr.left+er.left, ty=fr.top+er.top;
+    const cw=card.offsetWidth||380, ch=card.offsetHeight||190, margin=12;
+    let left=tx+er.width/2-cw/2;
+    left=Math.max(8,Math.min(left,innerWidth-cw-8));
+    card.style.right=''; card.style.bottom=''; card.style.top='';
+    if(ty>ch+margin){
+      card.style.top=(ty-ch-margin)+'px';
+    } else {
+      card.style.top=(ty+er.height+margin)+'px';
+      card.classList.add('cf-card--below');
+    }
+    card.style.left=left+'px';
+  }
   function go(i){ if(i<0||i>=matched.length) return; idx=i; render(); }
-  function finish(){ clearHl(); card.hidden=true; card.setAttribute('aria-hidden','true'); btn.hidden=false; }
+  function doHide(){ card.classList.remove('cf-exit'); card.hidden=true; card.setAttribute('aria-hidden','true'); btn.hidden=false; }
+  // F1 (animation audit): entering animates (cf-in) but an instant hide made
+  // the exit a hard pop-out. Play the symmetric exit first, then hide. Reduced
+  // motion hides instantly (no movement).
+  function finish(){
+    clearHl();
+    if(REDUCED){ doHide(); return; }
+    if(card.classList.contains('cf-exit')){ doHide(); return; }
+    card.classList.add('cf-exit');
+    card.addEventListener('animationend', function once(){ card.removeEventListener('animationend', once); doHide(); });
+    setTimeout(doHide, 150); // safety net so the card can never hang open
+  }
   function tryReady(){
     if(!iframeReady||!all.length) return;
     // Pair each change with its located marker (skip changes with no marker).
@@ -288,8 +344,15 @@ func changeTourScript(slug string) string {
   nextBtn.addEventListener('click',()=>go(idx+1));
   doneBtn.addEventListener('click',finish);
   closeBtn.addEventListener('click',finish);
-  btn.addEventListener('click',function(){ btn.hidden=true; card.hidden=false; card.setAttribute('aria-hidden','false'); go(0); document.activeElement&&document.activeElement.blur&&document.activeElement.blur(); });
-  frame.addEventListener('load',function(){ iframeReady=true; if(btn.hidden) tryReady(); });
+  btn.addEventListener('click',function(){ btn.hidden=true; card.classList.remove('cf-exit'); card.hidden=false; card.setAttribute('aria-hidden','false'); go(0); document.activeElement&&document.activeElement.blur&&document.activeElement.blur(); });
+  // Escape dismisses the tour like the comments sidebar: once in the shell and
+  // again inside the same-origin iframe (the highlight scrolls focus into it, so
+  // the key can land in either document). Calls finish(), which plays the exit.
+  function onTourKey(e){ if(e.key==='Escape' && !card.hidden){ e.preventDefault(); finish(); } }
+  document.addEventListener('keydown', onTourKey);
+  function wireFrameKeys(){ try{ if(frame.contentDocument){ frame.contentDocument.removeEventListener('keydown', onTourKey); frame.contentDocument.addEventListener('keydown', onTourKey); } }catch(_){} }
+  frame.addEventListener('load',function(){ iframeReady=true; wireFrameKeys(); if(btn.hidden) tryReady(); });
+  wireFrameKeys();
   if(frame.contentDocument&&frame.contentDocument.readyState==='complete'){ iframeReady=true; }
   fetch(LIST_URL).then(r=>r.json()).then(function(list){ all=Array.isArray(list)?list:[]; tryReady(); }).catch(function(){});
 })();</script>`
@@ -340,7 +403,7 @@ func commentPanelScript(slug string) string {
     panel.setAttribute('aria-hidden',String(!v));
     btn.setAttribute('aria-expanded',String(v));
     document.body.classList.toggle('commenting',v);
-    if(v){ showHeader(); body.focus(); loadList(); }
+    if(v){ hideAfford(); showHeader(); body.focus(); loadList(); }
     else {
       if(document.activeElement&&document.activeElement.closest('#commentPanel')) btn.focus();
       resetCompose();
@@ -395,6 +458,70 @@ func commentPanelScript(slug string) string {
     const win=frame.contentWindow, sel=win&&win.getSelection();
     return !!(sel && sel.toString().trim());
   }
+  // Adopt the reader's current live text selection (if any) as a selection anchor
+  // when entering the commenting flow, so a preceding selection is captured
+  // without the selection itself ever opening the panel (interaction-flow: the
+  // only affordance that opens the panel is the comment button).
+  function adoptSelection(){
+    const win=frame.contentWindow; if(!win) return;
+    const sel=win.getSelection(); if(!sel) return;
+    const text=sel.toString().trim(); if(!text) return;
+    const an=sel.anchorNode;
+    const el=an?(an.nodeType===1?an:an.parentElement):null;
+    state={type:'selection',anchor:cssPath(el),quote:text};
+    renderState();
+  }
+  // ── "Comment on selection" affordance ────────────────────────────────
+  // A reader's selection stays inert (no surprise drawer), but one small pill
+  // appears at the selection's end offering to anchor a comment — giving the
+  // commenter one-click intent exactly where they're looking (Medium/GDocs
+  // pattern). The pill lives in the SHELL (not the agent's page), positioned
+  // over the selection by translating the iframe's rect into shell coords, and
+  // reads the shell theme so it adapts to dark mode.
+  let afford=null, pendingComment=null;
+  function shellVar(n){ try{ return getComputedStyle(document.documentElement).getPropertyValue(n).trim()||''; }catch(_){ return ''; } }
+  function ensureAfford(){
+    if(afford&&afford.parentNode) return afford;
+    const bg=shellVar('--surface')||'#ffffff', fg=shellVar('--strong')||'#2e3440', bd=shellVar('--border')||'#d8dee9', fn=shellVar('--font')||'system-ui,sans-serif';
+    afford=document.createElement('button');
+    afford.type='button';
+    afford.setAttribute('aria-haspopup','dialog');
+    afford.textContent='Comment';
+    afford.style.cssText='position:fixed;z-index:999999;display:flex;align-items:center;gap:6px;'+
+      'padding:6px 12px;border-radius:999px;cursor:pointer;white-space:nowrap;'+
+      'font:600 11.5px '+fn+';letter-spacing:.01em;'+
+      'background:'+bg+';color:'+fg+';border:1px solid '+bd+';'+
+      'box-shadow:0 2px 10px rgba(46,52,64,.22);opacity:0;transition:opacity .12s ease';
+    afford.addEventListener('mousedown',function(e){ e.preventDefault(); }); // don't collapse the selection
+    afford.addEventListener('click',function(e){ e.preventDefault(); e.stopPropagation(); openCommentFromSelection(); });
+    document.body.appendChild(afford);
+    return afford;
+  }
+  function showAfford(){
+    if(open){ hideAfford(); return; }
+    const w=frame.contentWindow, s=w&&w.getSelection();
+    if(!s||s.isCollapsed||!s.rangeCount) return;
+    const r=s.getRangeAt(0).getBoundingClientRect(); if(!r||(!r.width&&!r.height)) return;
+    const an=s.anchorNode; const el=an?(an.nodeType===1?an:an.parentElement):null;
+    pendingComment={anchor:cssPath(el), quote:s.toString().trim()}; // capture now; a shell click may collapse the selection
+    const pill=ensureAfford(); if(!pill) return;
+    const fr=frame.getBoundingClientRect();
+    const fw=window.innerWidth, fh=window.innerHeight;
+    let top=fr.top+r.bottom+8, left=fr.left+r.right-pill.offsetWidth;
+    if(top+pill.offsetHeight>fh-8 && (fr.top+r.top)>pill.offsetHeight+10){ top=fr.top+r.top-pill.offsetHeight-8; }
+    pill.style.top=Math.max(8,top)+'px'; pill.style.left=Math.max(8,Math.min(left,fw-pill.offsetWidth-8))+'px';
+    requestAnimationFrame(function(){ pill.style.opacity='1'; });
+  }
+  function hideAfford(){ doneCommentIntent(); if(afford&&afford.parentNode){ afford.parentNode.removeChild(afford); afford=null; } }
+  function doneCommentIntent(){ pendingComment=null; }
+  function openCommentFromSelection(){
+    if(pendingComment){ const p=pendingComment; hideAfford(); state={type:'selection',anchor:p.anchor,quote:p.quote}; renderState(); setOpen(true); return; }
+    // Fallback: read a still-live selection if the pill's captured snapshot is gone.
+    const w=frame.contentWindow, sel=w&&w.getSelection(); const text=sel?sel.toString().trim():'';
+    if(!text) return;
+    const an=sel.anchorNode; const el=an?(an.nodeType===1?an:an.parentElement):null;
+    hideAfford(); state={type:'selection',anchor:cssPath(el),quote:text}; renderState(); setOpen(true);
+  }
   function clearHover(){ if(hoverEl){ hoverEl.classList.remove('cp-hover'); hoverEl=null; } }
   function clearAnchored(){ if(anchoredEl){ anchoredEl.classList.remove('cp-anchored'); anchoredEl=null; } }
   // Persist a marker on the element the current target points at (if it can be
@@ -416,9 +543,16 @@ func commentPanelScript(slug string) string {
     if(hoverEl){ ensurePickStyle(); hoverEl.classList.add('cp-hover'); }
   }
 
-  btn.addEventListener('click',()=>setOpen(!open));
+  // The panel opens only from an explicit affordance (the comment button) —
+  // never from a passive text selection. On open, adopt a live selection if one
+  // exists so "select, then click comment" still anchors; otherwise whole-page.
+  function toggleOpen(){
+    if(!open){ adoptSelection(); }
+    setOpen(!open);
+  }
+  btn.addEventListener('click',toggleOpen);
   close.addEventListener('click',()=>setOpen(false));
-  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'&&open) setOpen(false); });
+  document.addEventListener('keydown',(e)=>{ if(e.key==='Escape'){ if(open) setOpen(false); else hideAfford(); } });
 
   // Update the preview UI from state. The Clear affordance is offered only
   // while a selection/element target is captured (anchor is set).
@@ -456,19 +590,28 @@ func commentPanelScript(slug string) string {
     if(!doc) return;
     // Forward Escape from inside the page: focus lives in the iframe after a
     // selection/pick, and its keydown never reaches the shell document.
-    doc.addEventListener('keydown',(ev)=>{ if(ev.key==='Escape'&&open) setOpen(false); },true);
+    doc.addEventListener('keydown',(ev)=>{ if(ev.key==='Escape'){ if(open) setOpen(false); else hideAfford(); } },true);
     doc.addEventListener('mouseup',(ev)=>{
       const win=frame.contentWindow, sel=win&&win.getSelection();
       const text=sel?sel.toString().trim():'';
-      // The anchor of a text selection is usually a text node (use its
-      // parent), but for an element selection it is the element itself.
-      const an=(sel&&sel.anchorNode)||null;
-      const el=an?(an.nodeType===1?an:an.parentElement):null;
-      if(text){
+      if(open){
+        if(!text) return;
+        // The anchor of a text selection is usually a text node (use its
+        // parent), but for an element selection it is the element itself.
+        const an=(sel&&sel.anchorNode)||null;
+        const el=an?(an.nodeType===1?an:an.parentElement):null;
         state={type:'selection',anchor:cssPath(el),quote:text};
-        renderState(); setOpen(true);
+        renderState(); // in-flow re-anchor
+        return;
       }
+      // Reader mode: selection stays inert, but a passing "Comment" pill is
+      // offered at its end so commenting is one click from where they look.
+      if(text && sel && !sel.isCollapsed) showAfford(); else hideAfford();
     },true);
+    // Dismiss the affordance on any other interaction inside the page.
+    doc.addEventListener('mousedown',()=>hideAfford(),true);
+    doc.addEventListener('scroll',()=>hideAfford(),true);
+    doc.addEventListener('selectionchange',()=>{ const s=frame.contentWindow&&frame.contentWindow.getSelection(); if(!s||s.isCollapsed) hideAfford(); });
     doc.addEventListener('mousemove',trackHover,true);
     doc.addEventListener('click',(ev)=>{
       if(!canPickElement()) return;
@@ -482,6 +625,8 @@ func commentPanelScript(slug string) string {
   // When the cursor leaves the page (into the panel, header, or beyond) stop
   // the candidate highlight — the pointer is no longer over a pickable element.
   frame.addEventListener('mouseleave',clearHover);
+  // Clicking anywhere in the shell chrome (header, panel) dismisses the affordance.
+  document.addEventListener('mousedown',(e)=>{ if(e.target!==afford) hideAfford(); },true);
 
   // Submit the pending comment.
   form.addEventListener('submit',(e)=>{
@@ -659,9 +804,26 @@ transition:background .1s,color .1s,border-color .1s}
 .cf-btn:hover{background:var(--surface2);border-color:var(--text)}
 .cf-btn[hidden]{display:none}
 .cf-btn i{width:8px;height:8px;border-radius:999px;background:var(--acc)}
-.cf-card{position:fixed;z-index:46;left:50%;top:64px;transform:translateX(-50%);width:380px;max-width:92vw;
-background:var(--surface);border:1px solid var(--border);border-radius:var(--rs);
-box-shadow:0 6px 20px rgba(0,0,0,.12);padding:0}
+.cf-card{position:fixed;z-index:46;width:380px;max-width:92vw;
+background:var(--surface);border-radius:var(--rs);padding:0;
+box-shadow:0 1px 2px rgba(46,52,64,.06),0 6px 16px -4px rgba(46,52,64,.16),0 20px 44px -14px rgba(46,52,64,.26);
+animation:cf-in 160ms cubic-bezier(.23,1,.32,1)}
+/* Elevation instead of a ghost 1px border + wide soft blur: layered shadows
+   (contact + mid + ambient) carry the lift. In dark the black shadow is
+   invisible on the dark surface, so the shadow deepens AND a lit top edge
+   (inset highlight) is added — that top light is what makes a dark dialog
+   read as floating rather than bleeding into its background. */
+[data-theme="dark"] .cf-card{
+box-shadow:0 2px 6px rgba(0,0,0,.3),0 12px 28px -8px rgba(0,0,0,.5),0 28px 60px -20px rgba(0,0,0,.6),inset 0 1px 0 rgba(236,239,244,.07)}
+@keyframes cf-in{from{opacity:0;transform:translateY(4px) scale(.98)}to{opacity:1;transform:none}}
+/* F1 (animation audit): symmetric exit so close doesn't pop the card out —
+   contract back the way it came (fade + subtle scale-down, 120ms). Held with
+   forwards until JS hides the element. */
+@keyframes cf-exit{from{opacity:1;transform:none}to{opacity:0;transform:translateY(4px) scale(.985)}}
+.cf-card.cf-exit{animation:cf-exit 120ms cubic-bezier(.23,1,.32,1) forwards}
+.cf-card::before{content:'';position:absolute;bottom:-6px;left:50%;width:12px;height:12px;
+margin-left:-6px;background:var(--surface);transform:rotate(45deg)}
+.cf-card.cf-card--below::before{top:-6px;bottom:auto}
 .cf-card[hidden]{display:none}
 .cf-head{display:flex;align-items:center;gap:10px;padding:14px 16px 11px;border-bottom:1px solid var(--hair)}
 .cf-step{font:600 11px var(--font);color:var(--muted);text-transform:uppercase;letter-spacing:.05em}
@@ -671,12 +833,16 @@ box-shadow:0 6px 20px rgba(0,0,0,.12);padding:0}
 .cf-desc{color:var(--muted);font-size:12.5px;line-height:1.55;margin-top:3px}
 .cf-actions{display:flex;align-items:center;gap:8px;padding:12px 16px;border-top:1px solid var(--hair)}
 .cf-pill{border:1px solid var(--border);background:var(--surface);color:var(--text);border-radius:var(--rs);
-padding:7px 14px;font:600 12.5px var(--font);cursor:pointer}
+padding:7px 14px;font:600 12.5px var(--font);cursor:pointer;
+transition:background-color .1s,color .1s,border-color .1s,transform 120ms cubic-bezier(.23,1,.32,1)}
 .cf-pill:hover{background:var(--surface2)}
+.cf-pill:active:not(:disabled){transform:scale(.97)}
 .cf-pill:disabled{opacity:.4;cursor:not-allowed}
 .cf-pill.cf-primary{background:var(--acc-soft);border-color:var(--acc);color:var(--acc)}
 .cf-pill.cf-primary:hover{background:var(--surface)}
-@media(prefers-reduced-motion:reduce){.cf-btn,.cf-card{transition:none}}
+.cf-pill:focus-visible,.cf-close:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+@media(prefers-reduced-motion:reduce){.cf-btn{transition:none}.cf-card{animation:none;transition:none}.cf-card.cf-exit{animation:none}.cf-pill{transition:background-color .1s,color .1s,border-color .1s}.cf-pill:active{transform:none}}
+[data-theme="dark"] .cf-btn{box-shadow:0 2px 8px rgba(0,0,0,.32),inset 0 1px 0 rgba(236,239,244,.06)}
 @media(prefers-reduced-motion:reduce){.comment-panel{transition:opacity .18s ease;transform:none}
 .comment-panel.open{transform:none}
 }
