@@ -77,9 +77,8 @@ For each open comment, in order:
 2. **Edit the page, then push it back.** After `page add`, harbor serves a
    *copy* in the managed store — editing your original working file changes
    nothing the human can see. Address the comment in your working copy, then
-   push it with `harbor page update <slug> --file <your.html>` (copies the new
-   HTML into the managed store, re-indexes the body, bumps the timestamp).
-   `--file` is the only way your edit reaches the human.
+   push it with `harbor page update <slug> --file <your.html>`. `--file` is
+   the only way your edit reaches the human.
 3. **Mark the changed element** with a stable id on the element you edited:
    `data-cf-change="<id>"` (a short slug, e.g. `cf-1`).
 4. **Record the change** so the human is walked through what you did:
