@@ -15,8 +15,10 @@ func TestPageViewHasCommentPanel(t *testing.T) {
 		`id="commentPanel"`, `role="dialog"`, `aria-modal="true"`,
 		`id="commentClose"`, `id="cpBody"`, `id="cpType"`, `id="cpClear"`, `id="cpList"`,
 		"Post comment",
-		`encodeURIComponent(slug)`, // the JSON API path the shell targets at runtime
-		"No comments yet",          // empty list state rendered by the shell
+		`encodeURIComponent(slug)`,   // the JSON API path the shell targets at runtime
+		"No comments yet",            // empty list state rendered by the shell
+		`window.harborResolveAnchor`, // anchor resolution (HARB-30)
+		`data-cf-change`,             // resolve prefers change-marker identity
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("page view missing %q", want)
@@ -50,9 +52,9 @@ func TestPageViewChangeTour(t *testing.T) {
 		`/api/pages/`,            // the tour fetches the page's changes JSON
 		"data-cf-change=",        // it locates markers read back from the iframe DOM
 		`prefers-reduced-motion`, // honors reduced motion
-		`window.harborModes`,   // single-mode coordinator (HARB-31)
-		`set('tour')`,          // opening the tour claims TOUR mode
-		`btn.disabled=tour`,    // commenting is suppressed during the tour
+		`window.harborModes`,     // single-mode coordinator (HARB-31)
+		`set('tour')`,            // opening the tour claims TOUR mode
+		`btn.disabled=tour`,      // commenting is suppressed during the tour
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("page view change tour missing %q", want)

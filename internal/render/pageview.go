@@ -606,6 +606,40 @@ func commentPanelScript(slug string) string {
   typeSel.addEventListener('change',()=>{ state.type=typeSel.value; });
   clearBtn.addEventListener('click',resetCompose);
 
+  // ── Anchor resolution (HARB-30) ────────────────────────────────────────
+  // Resolve an {kind, path, quote?, markerID?} anchor to a LIVE DOM target in
+  // the iframe, preferring stable identity (change-markerID) over selector over
+  // quote re-location — so an anchor survives edits that change selectors.
+  // Returns {el, range?, quoteEl?} or null when nothing matches ("not found").
+  // Exposed as window.harborResolveAnchor for the review/jump surfaces.
+  function attrEscape(v){ return String(v||'').replace(/\\/g,'\\\\').replace(/"/g,'\\"'); }
+  function locateQuote(quote){
+    if(!doc||!quote) return null;
+    if(!doc.createTreeWalker) return null;
+    var walker=doc.createTreeWalker(doc.body,4); // NodeFilter.SHOW_TEXT
+    while(walker.nextNode()){
+      var n=walker.currentNode;
+      var idx=n.textContent.indexOf(quote);
+      if(idx>=0){
+        var range=doc.createRange();
+        range.setStart(n,idx); range.setEnd(n,idx+quote.length);
+        return {el:n.parentElement, range:range, quoteEl:n};
+      }
+    }
+    return null;
+  }
+  function resolveAnchor(anchor){
+    if(!doc||!anchor) return null;
+    // 1) Stable identity: the best-change-marker id survives edits.
+    if(anchor.markerID){ try{ var m=doc.querySelector('[data-cf-change="'+attrEscape(anchor.markerID)+'"]'); if(m) return {el:m}; }catch(_){} }
+    // 2) Fallback: the recorded selector.
+    if(anchor.path){ try{ var p=doc.querySelector(anchor.path); if(p) return {el:p}; }catch(_){} }
+    // 3) Last resort: re-locate the quoted text.
+    if(anchor.kind==='text' && anchor.quote){ var t=locateQuote(anchor.quote); if(t) return t; }
+    return null;
+  }
+  window.harborResolveAnchor=resolveAnchor;
+
   function cssPath(el){
     if(!el||el.nodeType!==1) return '';
     if(el.id) return '#'+CSS.escape(el.id);
