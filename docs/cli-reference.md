@@ -60,12 +60,19 @@ harbor page read <slug>                       # Metadata, tags, origin, body exc
 harbor page update <slug> --description "..."
 harbor page update <slug> --status published
 harbor page update <slug> --tag finance --tag chart   # Replaces the full tag set
+harbor page update <slug> --file <new.html>          # Replace the HTML content
 harbor page delete <slug>                     # Remove page + its managed file
 ```
 
 `harbor page add` requires an existing workspace (`--workspace`); it fails fast
 rather than auto-creating a phantom one. Pages without a description get a
 warning — descriptions power search.
+
+`harbor page update --file` is how content changes reach the served page:
+after `page add`, the page the dashboard serves is the managed copy, and
+`--file` replaces it (copying the new HTML into the managed store, re-extracting
+body text, and bumping `updated_at`). Without `--file`, `page update` only
+touches metadata.
 
 ## Tags
 

@@ -194,12 +194,17 @@ var pageUpdateCmd = &cobra.Command{
 	Long: `Update a page by stable slug (find-then-update). The slug never changes.
 Use --title to rename, --description/--context to refresh provenance, --status
 to change readiness (draft/published/archived), and repeat --tag to replace the
-full tag set. Body text is re-extracted from the managed file if it exists.
+full tag set. Pass --file <path> to replace the page's HTML content: the new
+file is copied into the managed store (what the dashboard serves) and its body
+text is re-indexed. Body text is otherwise re-extracted from the managed file
+if it exists.
 
 Examples:
   harbor page update monthly-totals --description "revised chart"
   harbor page update monthly-totals --status published
-  harbor page update monthly-totals --tag finance --tag chart`,
+  harbor page update monthly-totals --tag finance --tag chart
+  harbor page update monthly-totals --file /tmp/new.html
+  harbor page update monthly-totals --file /tmp/new.html --status published`,
 	Args: cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		s := mustStore(cmd)
@@ -232,15 +237,41 @@ Examples:
 			tags = &ts
 		}
 
-		if title == nil && description == nil && context == nil && status == nil && tags == nil {
-			return fmt.Errorf("nothing to update — pass --title, --description, --context, --status, and/or --tag\n  harbor page update %q --description ...", slug)
+		filePath, _ := cmd.Flags().GetString("file")
+
+		if filePath == "" && title == nil && description == nil && context == nil && status == nil && tags == nil {
+			return fmt.Errorf("nothing to update — pass --title, --description, --context, --status, --tag, and/or --file\n  harbor page update %q --description ...", slug)
 		}
 
-		// Idempotent index refresh: re-extract body text from the managed file
-		// if it exists (the page's HTML may have changed on disk).
-		var bodyText *string
+		// The managed file is the content harbor serves; resolve its workspace
+		// before touching the store so failures surface loudly.
 		wsName, err := s.GetWorkspace(page.WorkspaceID)
-		if err == nil {
+		if err != nil {
+			return formatError("failed to resolve page workspace", err)
+		}
+
+		// Content push: --file replaces the managed HTML and re-indexes its body
+		// text in one step — the one command that makes an edit reach the human.
+		var bodyText *string
+		if filePath != "" {
+			data, rerr := os.ReadFile(filePath)
+			if rerr != nil {
+				return fmt.Errorf("failed to read --file %q: %w", filePath, rerr)
+			}
+			if strings.TrimSpace(string(data)) == "" {
+				return fmt.Errorf("--file %q is empty (0 bytes of content) — refusing to blank the page", filePath)
+			}
+			if err := os.MkdirAll(managedStoreDir(wsName.Name), 0o755); err != nil {
+				return formatError("failed to create managed store directory", err)
+			}
+			if err := os.WriteFile(managedPagePath(wsName.Name, slug), data, 0o644); err != nil {
+				return formatError("failed to replace page content", err)
+			}
+			bt := extract.FromHTML(string(data))
+			bodyText = &bt
+		} else {
+			// Idempotent index refresh: re-extract body text from the managed file
+			// if it exists (the page's HTML may have changed on disk).
 			if data, rerr := os.ReadFile(managedPagePath(wsName.Name, slug)); rerr == nil {
 				bt := extract.FromHTML(string(data))
 				bodyText = &bt
@@ -322,6 +353,7 @@ func init() {
 	pageUpdateCmd.Flags().String("context", "", "Replace the page context")
 	pageUpdateCmd.Flags().String("status", "", "Set status: draft, published, archived")
 	pageUpdateCmd.Flags().StringArray("tag", nil, "Replace the full tag set (repeatable)")
+	pageUpdateCmd.Flags().String("file", "", "Replace the page HTML content from this file (copied into the managed store, body re-indexed)")
 }
 
 func printPagesJSON(s *db.Store, pages []db.Page) error {

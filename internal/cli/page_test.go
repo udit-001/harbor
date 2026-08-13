@@ -3,11 +3,13 @@ package cli
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/udit-001/harbor/internal/db"
@@ -136,5 +138,153 @@ func TestSearchCommandAndRebuild(t *testing.T) {
 	rebuild := runWithStore(t, []string{"search", "--rebuild-index"}, store)
 	if !strings.Contains(rebuild, "Reindexed") {
 		t.Fatalf("rebuild missing summary:\n%s", rebuild)
+	}
+}
+
+// jsonTime parses one top-level timestamp field out of a page --json record.
+func jsonTime(t *testing.T, out, field string) time.Time {
+	t.Helper()
+	var m map[string]any
+	if err := json.Unmarshal([]byte(out), &m); err != nil {
+		t.Fatalf("page --json output not parseable: %v\n%s", err, out)
+	}
+	v, ok := m[field].(string)
+	if !ok {
+		t.Fatalf("json field %q missing or not a string: %s", field, out)
+	}
+	ts, err := time.Parse(time.RFC3339Nano, v)
+	if err != nil {
+		// Pages get datetime('now') ("2006-01-02 15:04:05") on insert via
+		// schema default but RFC3339Nano on update — parse both (both UTC).
+		if ts2, err2 := time.Parse("2006-01-02 15:04:05", v); err2 == nil {
+			return ts2
+		}
+		t.Fatalf("json field %q not a timestamp %q: %v", field, v, err)
+	}
+	return ts
+}
+
+func TestPageUpdateFileReplacesContent(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	store, cleanup := newTestStore(t)
+	defer cleanup()
+
+	if _, err := store.CreateWorkspace("ws", "ws", "the work", filepath.Join(home, "wsdir")); err != nil {
+		t.Fatalf("seed workspace: %v", err)
+	}
+
+	old := writeBodyFile(t, "<html><body><p>old body marker text</p></body></html>")
+	_ = runWithStore(t, []string{"page", "add", old, "--workspace", "ws",
+		"--title", "totals chart", "--description", "a chart"}, store)
+
+	managed := filepath.Join(home, ".harbor", "store", "ws", "totals-chart.html")
+	data, err := os.ReadFile(managed)
+	if err != nil {
+		t.Fatalf("managed file missing after add: %v", err)
+	}
+	if !strings.Contains(string(data), "old body marker text") {
+		t.Fatalf("managed file missing original content:\n%s", data)
+	}
+
+	before := jsonTime(t, runWithStore(t, []string{"page", "read", "totals-chart", "--json"}, store), "updatedAt")
+
+	newSrc := writeBodyFile(t, "<html><body><p>brand new body marker text</p></body></html>")
+	out := runWithStore(t, []string{"page", "update", "totals-chart", "--file", newSrc}, store)
+	if !strings.Contains(out, "Page updated") {
+		t.Fatalf("update missing confirmation:\n%s", out)
+	}
+
+	// The managed file — the content harbor serves — is the new HTML.
+	data, err = os.ReadFile(managed)
+	if err != nil {
+		t.Fatalf("managed file missing after update: %v", err)
+	}
+	if !strings.Contains(string(data), "brand new body marker text") {
+		t.Fatalf("managed file not replaced with new content:\n%s", data)
+	}
+	if strings.Contains(string(data), "old body marker text") {
+		t.Fatalf("managed file still holds stale content:\n%s", data)
+	}
+
+	// FTS index refreshed: search finds the new body text and not the old.
+	if got := runWithStore(t, []string{"page", "list", "--search", "brand new body"}, store); !strings.Contains(got, "totals-chart") {
+		t.Fatalf("search for new content missed the page:\n%s", got)
+	}
+	if got := runWithStore(t, []string{"page", "list", "--search", "old body marker"}, store); strings.Contains(got, "totals-chart") {
+		t.Fatalf("search still returns stale body text:\n%s", got)
+	}
+
+	// updated_at bumped (nanosecond precision makes same-second flake impossible).
+	after := jsonTime(t, runWithStore(t, []string{"page", "read", "totals-chart", "--json"}, store), "updatedAt")
+	if !after.After(before) {
+		t.Fatalf("updated_at not bumped: before=%s after=%s", before, after)
+	}
+}
+
+func TestPageUpdateFileAloneIsValid(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	store, cleanup := newTestStore(t)
+	defer cleanup()
+
+	if _, err := store.CreateWorkspace("ws", "ws", "the work", filepath.Join(home, "wsdir")); err != nil {
+		t.Fatalf("seed workspace: %v", err)
+	}
+
+	src := writeBodyFile(t, "<html><body><p>content</p></body></html>")
+	_ = runWithStore(t, []string{"page", "add", src, "--workspace", "ws",
+		"--title", "totals chart"}, store)
+
+	newSrc := writeBodyFile(t, "<html><body><p>fresh content</p></body></html>")
+	out := runWithStore(t, []string{"page", "update", "totals-chart", "--file", newSrc}, store)
+	if !strings.Contains(out, "Page updated") {
+		t.Fatalf("--file alone should be a valid update, got:\n%s", out)
+	}
+}
+
+func TestPageUpdateFileMissingPathErrors(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	store, cleanup := newTestStore(t)
+	defer cleanup()
+
+	if _, err := store.CreateWorkspace("ws", "ws", "the work", filepath.Join(home, "wsdir")); err != nil {
+		t.Fatalf("seed workspace: %v", err)
+	}
+	src := writeBodyFile(t, "<html><body><p>content</p></body></html>")
+	_ = runWithStore(t, []string{"page", "add", src, "--workspace", "ws",
+		"--title", "totals chart"}, store)
+
+	missing := filepath.Join(home, "does-not-exist.html")
+	_, err := runWithStoreErr(t, []string{"page", "update", "totals-chart", "--file", missing}, store)
+	if err == nil {
+		t.Fatalf("expected error for missing --file path")
+	}
+	if !strings.Contains(err.Error(), missing) {
+		t.Fatalf("error should name the missing path %q, got: %s", missing, err.Error())
+	}
+}
+
+func TestPageUpdateFileEmptyErrors(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	store, cleanup := newTestStore(t)
+	defer cleanup()
+
+	if _, err := store.CreateWorkspace("ws", "ws", "the work", filepath.Join(home, "wsdir")); err != nil {
+		t.Fatalf("seed workspace: %v", err)
+	}
+	src := writeBodyFile(t, "<html><body><p>content</p></body></html>")
+	_ = runWithStore(t, []string{"page", "add", src, "--workspace", "ws",
+		"--title", "totals chart"}, store)
+
+	empty := writeBodyFile(t, "   \n  ")
+	_, err := runWithStoreErr(t, []string{"page", "update", "totals-chart", "--file", empty}, store)
+	if err == nil {
+		t.Fatalf("expected error for empty --file content")
+	}
+	if !strings.Contains(err.Error(), "empty") {
+		t.Fatalf("error should call out empty content, got: %s", err.Error())
 	}
 }
