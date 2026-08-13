@@ -10,16 +10,16 @@ import (
 // header for both container and full modes; the page renders in an iframe that
 // fills the content column (container) or the whole viewport (full).
 type PageViewData struct {
-	Slug      string
-	Title     string
-	Status    string
-	Workspace string
-	Tags      []string
-	RawURL    string // /page/<slug>/raw — the iframe src and pop-out target
-	BackURL   string // library URL preserving the current filter
-PrevURL   string   // "" when no previous page in the current set
-	NextURL   string   // "" when no next page in the current set
-	FeedbackOpen int   // open comments on this page (derived; drives the chrome badge)
+	Slug         string
+	Title        string
+	Status       string
+	Workspace    string
+	Tags         []string
+	RawURL       string // /page/<slug>/raw — the iframe src and pop-out target
+	BackURL      string // library URL preserving the current filter
+	PrevURL      string // "" when no previous page in the current set
+	NextURL      string // "" when no next page in the current set
+	FeedbackOpen int    // open comments on this page (derived; drives the chrome badge)
 }
 
 // PageView renders the full page-view document. Mode is decided client-side:
@@ -63,7 +63,7 @@ func pageViewHeader(d PageViewData) string {
 	b.WriteString(`<a class="crumb" href="` + e(d.BackURL) + `">Library</a>`)
 	b.WriteString(`<span class="sep">/</span>`)
 	b.WriteString(`<span class="title">` + esc(d.Title) + `</span>`)
-b.WriteString(`<span class="badge ` + statusClass(d.Status) + `">` + esc(d.Status) + `</span>`)
+	b.WriteString(`<span class="badge ` + statusClass(d.Status) + `">` + esc(d.Status) + `</span>`)
 	if d.FeedbackOpen > 0 {
 		fmt.Fprintf(&b, `<span class="pv-fb" id="pvFb" data-n="%d" title="%d open comment(s)"><i></i>%d open</span>`, d.FeedbackOpen, d.FeedbackOpen, d.FeedbackOpen)
 	}
