@@ -98,6 +98,7 @@ func NewMux(store *db.Store, dataDir string, devCSS bool) *http.ServeMux {
 	mux.HandleFunc("GET /api/pages", jsonHandler(handlePagesJSON(store)))
 	mux.HandleFunc("GET /api/pages/{slug}/comments", jsonHandler(handleListPageComments(store)))
 	mux.HandleFunc("POST /api/pages/{slug}/comments", jsonHandler(handleCreatePageComment(store)))
+	mux.HandleFunc("PATCH /api/pages/{slug}/comments/{id}", jsonHandler(handleUpdatePageComment(store)))
 	mux.HandleFunc("GET /api/pages/{slug}/changes", jsonHandler(handleListPageChanges(store)))
 
 	// App pages
@@ -311,22 +312,33 @@ func handleListPageChanges(store *db.Store) http.HandlerFunc {
 }
 
 // handleCreatePageComment writes a new comment to the DB for a page. The page
-// file is never touched — the anchor/quote/type describe the human's selection
-// into an already-served document.
+// file is never touched. The multi-anchor `anchors` list is canonical (HARB-29);
+// the legacy type/anchor/quote fields are accepted as a single-anchor fallback
+// so old clients keep working.
 func handleCreatePageComment(store *db.Store) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		slug := r.PathValue("slug")
 		var body struct {
-			Type   string `json:"type"`
-			Anchor string `json:"anchor"`
-			Quote  string `json:"quote"`
-			Body   string `json:"body"`
+			Type    string      `json:"type"`
+			Anchor  string      `json:"anchor"`
+			Quote   string      `json:"quote"`
+			Body    string      `json:"body"`
+			Anchors []db.Anchor `json:"anchors"`
+			ReplyTo int64       `json:"replyTo"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 			jsonError(w, "invalid request body", http.StatusBadRequest)
 			return
 		}
-		created, err := store.CreateComment(slug, body.Anchor, body.Quote, body.Type, body.Body)
+		var (
+			created db.CommentView
+			err     error
+		)
+		if len(body.Anchors) > 0 {
+			created, err = store.CreateCommentAnchors(slug, body.Body, body.Anchors, body.ReplyTo)
+		} else {
+			created, err = store.CreateComment(slug, body.Anchor, body.Quote, body.Type, body.Body)
+		}
 		if err != nil {
 			if _, perr := store.PageBySlug(slug); perr != nil {
 				jsonError(w, "page not found", http.StatusNotFound)
@@ -337,6 +349,51 @@ func handleCreatePageComment(store *db.Store) http.HandlerFunc {
 		}
 		w.WriteHeader(http.StatusCreated)
 		jsonResponse(w, created)
+	}
+}
+
+// handleUpdatePageComment edits an open comment (body + anchors) and/or
+// transitions its status. Editing a done comment is rejected (HARB-20).
+func handleUpdatePageComment(store *db.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		id, err := strconv.ParseInt(r.PathValue("id"), 10, 64)
+		if err != nil {
+			jsonError(w, "invalid comment id", http.StatusBadRequest)
+			return
+		}
+		var body struct {
+			Body    *string     `json:"body"`
+			Anchors []db.Anchor `json:"anchors"`
+			Status  *string     `json:"status"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			jsonError(w, "invalid request body", http.StatusBadRequest)
+			return
+		}
+		var out db.CommentView
+		if body.Body != nil || body.Anchors != nil {
+			b := ""
+			if body.Body != nil {
+				b = *body.Body
+			}
+			out, err = store.UpdateComment(id, b, body.Anchors)
+			if err != nil {
+				jsonError(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+		if body.Status != nil {
+			out, err = store.UpdateCommentStatus(id, *body.Status)
+			if err != nil {
+				jsonError(w, err.Error(), http.StatusBadRequest)
+				return
+			}
+		}
+		if body.Body == nil && body.Anchors == nil && body.Status == nil {
+			jsonError(w, "nothing to update", http.StatusBadRequest)
+			return
+		}
+		jsonResponse(w, out)
 	}
 }
 

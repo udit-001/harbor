@@ -2,6 +2,7 @@ package server
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -174,5 +175,47 @@ func TestCommentsAPIValidation(t *testing.T) {
 	}
 	if rec := postJSON(env, "/api/pages/nope/comments", `{"body":"x"}`); rec.Code != http.StatusNotFound {
 		t.Fatalf("create comment on missing page status = %d, want 404", rec.Code)
+	}
+}
+
+// patchJSON issues a PATCH with the given JSON body and returns the recorder.
+func patchJSON(env *testEnv, target, body string) *httptest.ResponseRecorder {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest("PATCH", target, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	env.mux.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestCommentsAPIMultiAnchorCreateAndEdit(t *testing.T) {
+	env := newTestEnv(t)
+	slug := seedCommentPage(t, env)
+	target := "/api/pages/" + slug + "/comments"
+
+	rec := postJSON(env, target,
+		`{"body":"flag both rows","anchors":[{"kind":"text","path":"#row-a","quote":"off"},{"kind":"text","path":"#row-b","quote":"off2"}]}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create code = %d: %s", rec.Code, rec.Body.String())
+	}
+	var created db.CommentView
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode created: %v", err)
+	}
+	if len(created.Anchors) != 2 || created.Anchor != "#row-a" {
+		t.Fatalf("multi-anchor create failed: %+v", created)
+	}
+
+	id := created.ID
+	crec := patchJSON(env, fmt.Sprintf("/api/pages/%s/comments/%d", slug, id),
+		`{"body":"revised","anchors":[{"kind":"element","path":".hero"}]}`)
+	if crec.Code != http.StatusOK {
+		t.Fatalf("edit code = %d: %s", crec.Code, crec.Body.String())
+	}
+	var edited db.CommentView
+	if err := json.Unmarshal(crec.Body.Bytes(), &edited); err != nil {
+		t.Fatalf("decode edited: %v", err)
+	}
+	if edited.Body != "revised" || len(edited.Anchors) != 1 || edited.Anchors[0].Kind != db.AnchorKindElement {
+		t.Fatalf("edit not applied: %+v", edited)
 	}
 }

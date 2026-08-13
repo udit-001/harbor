@@ -1,6 +1,7 @@
 package db
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -12,32 +13,46 @@ import (
 // CommentView (comment + page slug) so the CLI and the derived open-feedback
 // state never resolve a raw page_id.
 
-const commentColumns = `c.id, c.page_id, c.anchor, c.quote, c.type, c.body, c.status, c.created_at, COALESCE(c.resolved_at, '')`
+const commentColumns = `c.id, c.page_id, c.anchor, c.quote, c.type, c.body, c.status, c.created_at, COALESCE(c.resolved_at, ''), c.anchors, COALESCE(c.reply_to, 0), c.updated_at`
 
 const commentViewColumns = commentColumns + `, p.slug`
 
 func scanComment(row interface{ Scan(...any) error }) (Comment, error) {
 	var c Comment
-	var resolved string
+	var resolved, anchorsJSON string
+	var replyTo int64
 	err := row.Scan(
 		&c.ID, &c.PageID, &c.Anchor, &c.Quote, &c.Type, &c.Body, &c.Status,
-		&c.CreatedAt, &resolved,
+		&c.CreatedAt, &resolved, &anchorsJSON, &replyTo, &c.UpdatedAt,
 	)
 	if resolved != "" {
 		c.ResolvedAt = &resolved
+	}
+	if replyTo != 0 {
+		c.ReplyTo = &replyTo
+	}
+	if anchorsJSON != "" {
+		_ = json.Unmarshal([]byte(anchorsJSON), &c.Anchors)
 	}
 	return c, err
 }
 
 func scanCommentView(row interface{ Scan(...any) error }) (CommentView, error) {
 	var v CommentView
-	var resolved string
+	var resolved, anchorsJSON string
+	var replyTo int64
 	err := row.Scan(
 		&v.ID, &v.PageID, &v.Anchor, &v.Quote, &v.Type, &v.Body, &v.Status,
-		&v.CreatedAt, &resolved, &v.PageSlug,
+		&v.CreatedAt, &resolved, &anchorsJSON, &replyTo, &v.UpdatedAt, &v.PageSlug,
 	)
 	if resolved != "" {
 		v.ResolvedAt = &resolved
+	}
+	if replyTo != 0 {
+		v.ReplyTo = &replyTo
+	}
+	if anchorsJSON != "" {
+		_ = json.Unmarshal([]byte(anchorsJSON), &v.Anchors)
 	}
 	return v, err
 }
@@ -75,18 +90,6 @@ func normalizeCommentStatus(status string) (string, error) {
 	}
 }
 
-// normalizeCommentType validates a comment type, defaulting empty to general.
-func normalizeCommentType(typ string) (string, error) {
-	switch typ {
-	case "":
-		return CommentTypeGeneral, nil
-	case CommentTypeSelection, CommentTypeElement, CommentTypeGeneral:
-		return typ, nil
-	default:
-		return "", fmt.Errorf("comment type must be one of: selection, element, general (got %q)", typ)
-	}
-}
-
 // CommentFilter narrows ListComments. All fields are optional: zero values mean
 // "no filter". PageSlug filters to comments on that page by slug.
 type CommentFilter struct {
@@ -94,26 +97,79 @@ type CommentFilter struct {
 	Status   string // "" = all statuses
 }
 
-// CreateComment creates a comment on a page by slug. anchor/quote/type describe
-// the selection the human anchored; body is the actual feedback. Returns the
-// created comment's display view.
-func (s *Store) CreateComment(pageSlug, anchor, quote, typ, body string) (CommentView, error) {
+// normalizeAnchors validates a comment's anchor list, defaulting an empty list
+// to a whole-document anchor. It also derives the legacy single-anchor display
+// columns (type/anchor/quote) from the first anchor so old readers keep working.
+func normalizeAnchors(anchors []Anchor) (out []Anchor, typ, anchor, quote string, err error) {
+	if len(anchors) == 0 {
+		anchors = []Anchor{{Kind: AnchorKindDocument}}
+	}
+	for i := range anchors {
+		// Canonicalize an empty or legacy kind onto the canonical vocabulary
+		// (general→document, selection→text, element→element).
+		k := anchors[i].Kind
+		switch k {
+		case "", CommentTypeGeneral:
+			k = AnchorKindDocument
+		case CommentTypeSelection:
+			k = AnchorKindText
+		case CommentTypeElement:
+			k = AnchorKindElement
+		}
+		if k != AnchorKindText && k != AnchorKindElement && k != AnchorKindDocument {
+			return nil, "", "", "", fmt.Errorf("anchor kind must be one of: text, element, document (got %q)", anchors[i].Kind)
+		}
+		anchors[i].Kind = k
+	}
+	a := anchors[0]
+	switch a.Kind {
+	case AnchorKindText:
+		typ, anchor, quote = CommentTypeSelection, a.Path, a.Quote
+	case AnchorKindElement:
+		typ, anchor, quote = CommentTypeElement, a.Path, a.Quote
+	default:
+		typ, anchor, quote = CommentTypeGeneral, a.Path, a.Quote
+	}
+	return anchors, typ, anchor, quote, nil
+}
+
+// CreateCommentAnchors creates a comment on a page by slug with a multi-anchor
+// list and an optional reply-to link (HARB-29). body is the actual feedback;
+// the legacy anchor/quote/type columns are derived from the first anchor.
+func (s *Store) CreateCommentAnchors(pageSlug, body string, anchors []Anchor, replyTo int64) (CommentView, error) {
 	page, err := s.PageBySlug(pageSlug)
 	if err != nil {
 		return CommentView{}, fmt.Errorf("comment: %w", err)
 	}
-	typ, err = normalizeCommentType(typ)
-	if err != nil {
-		return CommentView{}, err
-	}
 	if strings.TrimSpace(body) == "" {
 		return CommentView{}, fmt.Errorf("comment body must not be empty")
 	}
+	anchors, typ, anchor, quote, err := normalizeAnchors(anchors)
+	if err != nil {
+		return CommentView{}, err
+	}
+	anchorsJSON, err := json.Marshal(anchors)
+	if err != nil {
+		return CommentView{}, fmt.Errorf("encode anchors: %w", err)
+	}
 
+	var replyRef any
+	if replyTo != 0 {
+		parent, err := s.CommentByID(replyTo)
+		if err != nil {
+			return CommentView{}, err
+		}
+		if parent.PageID != page.ID {
+			return CommentView{}, fmt.Errorf("comment %d does not belong to page %q", replyTo, pageSlug)
+		}
+		replyRef = replyTo
+	}
+
+	now := nowTimestamp()
 	res, err := s.db.Exec(
-		`INSERT INTO comments (page_id, anchor, quote, type, body, status, created_at)
-		 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-		page.ID, anchor, quote, typ, body, CommentStatusOpen, nowTimestamp(),
+		`INSERT INTO comments (page_id, anchor, quote, type, body, status, anchors, reply_to, created_at, updated_at)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		page.ID, anchor, quote, typ, body, CommentStatusOpen, string(anchorsJSON), replyRef, now, now,
 	)
 	if err != nil {
 		return CommentView{}, fmt.Errorf("insert comment: %w", err)
@@ -121,6 +177,44 @@ func (s *Store) CreateComment(pageSlug, anchor, quote, typ, body string) (Commen
 	id, err := res.LastInsertId()
 	if err != nil {
 		return CommentView{}, err
+	}
+	return s.CommentByID(id)
+}
+
+// CreateComment is the legacy single-anchor convenience that builds one Anchor
+// from the old (type, anchor, quote) params. Kept as a shim so CLI + existing
+// tests stay green; the multi-anchor path is CreateCommentAnchors.
+func (s *Store) CreateComment(pageSlug, anchor, quote, typ, body string) (CommentView, error) {
+	return s.CreateCommentAnchors(pageSlug, body, []Anchor{{Kind: typ, Path: anchor, Quote: quote}}, 0)
+}
+
+// UpdateComment edits an open comment's body and anchors (HARB-20: edit is
+// open-only — done comments are never revised). Returns the updated view.
+func (s *Store) UpdateComment(id int64, body string, anchors []Anchor) (CommentView, error) {
+	current, err := s.CommentByID(id)
+	if err != nil {
+		return CommentView{}, err
+	}
+	if current.Status != CommentStatusOpen {
+		return CommentView{}, fmt.Errorf("comment %d is %q; only open comments can be edited", id, current.Status)
+	}
+	if strings.TrimSpace(body) == "" {
+		return CommentView{}, fmt.Errorf("comment body must not be empty")
+	}
+	anchors, typ, anchor, quote, err := normalizeAnchors(anchors)
+	if err != nil {
+		return CommentView{}, err
+	}
+	anchorsJSON, err := json.Marshal(anchors)
+	if err != nil {
+		return CommentView{}, fmt.Errorf("encode anchors: %w", err)
+	}
+	_, err = s.db.Exec(
+		`UPDATE comments SET body = ?, anchors = ?, anchor = ?, quote = ?, type = ?, updated_at = ? WHERE id = ?`,
+		body, string(anchorsJSON), anchor, quote, typ, nowTimestamp(), id,
+	)
+	if err != nil {
+		return CommentView{}, fmt.Errorf("update comment %d: %w", id, err)
 	}
 	return s.CommentByID(id)
 }

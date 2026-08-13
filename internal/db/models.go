@@ -65,6 +65,26 @@ const (
 	CommentStatusDone       = "done"
 )
 
+// Anchor is a single reference to a spot in the page a comment is attached to.
+// Kind mirrors the legacy CommentType: text (a quoted selection), element (a
+// selector), or document (whole page). MarkerID optionally binds the anchor to
+// a stable data-cf-change marker so it survives edits (HARB-24/27).
+type Anchor struct {
+	Kind     string `json:"kind"`
+	Path     string `json:"path,omitempty"`
+	Quote    string `json:"quote,omitempty"`
+	MarkerID string `json:"markerId,omitempty"`
+}
+
+// Anchor kinds (canonical). These map onto the legacy comment types for the
+// old single-anchor display columns: text→selection, element→element,
+// document→general.
+const (
+	AnchorKindText     = "text"
+	AnchorKindElement  = "element"
+	AnchorKindDocument = "document"
+)
+
 // Comment is anchored human feedback on a page. The page file is never touched
 // — comments live here, keyed by page_id and (optionally) an anchor. Quote is
 // the selected text snippet; Anchor is the element's existing id or a stable
@@ -79,6 +99,12 @@ type Comment struct {
 	Status     string  `db:"status" json:"status"`
 	CreatedAt  string  `db:"created_at" json:"createdAt"`
 	ResolvedAt *string `db:"resolved_at" json:"resolvedAt"`
+	// Anchors is the canonical multi-anchor list (JSON column). The legacy
+	// Anchor/Quote/Type columns remain for backward-compat display and are
+	// derived from the first anchor on write.
+	Anchors   []Anchor `json:"anchors"`
+	ReplyTo   *int64   `db:"reply_to" json:"replyTo,omitempty"`
+	UpdatedAt string   `db:"updated_at" json:"updatedAt"`
 }
 
 // CommentView pairs a Comment with its page slug — the READY-TO-DISPLAY shape

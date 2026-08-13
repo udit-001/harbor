@@ -215,3 +215,88 @@ func TestCommentCascadeOnPageDelete(t *testing.T) {
 		t.Fatalf("comments after page delete (expect 0): %d", len(open))
 	}
 }
+
+func TestCreateCommentAnchorsMultiAndReply(t *testing.T) {
+	s := newTestStore(t)
+	slug := seedPageForComments(t, s, "ws", "multi-anchor")
+
+	// A multi-anchor comment: two text selections flagged together.
+	anchors := []Anchor{
+		{Kind: AnchorKindText, Path: "#row-a", Quote: "growth is off"},
+		{Kind: AnchorKindText, Path: "#row-b", Quote: "same issue here"},
+	}
+	created, err := s.CreateCommentAnchors(slug, "flag both rows", anchors, 0)
+	if err != nil {
+		t.Fatalf("create multi-anchor comment: %v", err)
+	}
+	if len(created.Anchors) != 2 {
+		t.Fatalf("anchors round-trip = %d, want 2", len(created.Anchors))
+	}
+	if created.Anchors[0].Path != "#row-a" || created.Anchors[1].Quote != "same issue here" {
+		t.Fatalf("anchor contents wrong: %+v", created.Anchors)
+	}
+	// Legacy display columns derive from the first anchor.
+	if created.Type != CommentTypeSelection || created.Anchor != "#row-a" || created.Quote != "growth is off" {
+		t.Fatalf("legacy columns not derived: type=%q anchor=%q quote=%q", created.Type, created.Anchor, created.Quote)
+	}
+
+	// Reply: a new open comment linked back to the parent, same page.
+	reply, err := s.CreateCommentAnchors(slug, "agree, also row-c", []Anchor{{Kind: AnchorKindElement, Path: "#row-c"}}, created.ID)
+	if err != nil {
+		t.Fatalf("create reply: %v", err)
+	}
+	if reply.ReplyTo == nil || *reply.ReplyTo != created.ID {
+		t.Fatalf("reply.ReplyTo = %v, want %d", reply.ReplyTo, created.ID)
+	}
+
+	// Reply to a comment on another page is rejected.
+	other := seedPageForComments(t, s, "ws2", "other-page")
+	if _, err := s.CreateCommentAnchors(other, "cross-page reply", anchors, created.ID); err == nil {
+		t.Fatalf("expected error replying to a comment on another page")
+	}
+
+	// Empty anchor list defaults to a whole-document anchor.
+	def, err := s.CreateCommentAnchors(slug, "overall", nil, 0)
+	if err != nil {
+		t.Fatalf("create with no anchors: %v", err)
+	}
+	if len(def.Anchors) != 1 || def.Anchors[0].Kind != AnchorKindDocument || def.Type != CommentTypeGeneral {
+		t.Fatalf("default anchor wrong: %+v", def)
+	}
+}
+
+func TestUpdateCommentEditOpenOnly(t *testing.T) {
+	s := newTestStore(t)
+	slug := seedPageForComments(t, s, "ws", "editable")
+
+	c, err := s.CreateCommentAnchors(slug, "original", []Anchor{{Kind: AnchorKindElement, Path: ".hero"}}, 0)
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if c.UpdatedAt == "" {
+		t.Fatalf("updated_at should be set on create")
+	}
+
+	// Editing an open comment updates body + anchors.
+	edited, err := s.UpdateComment(c.ID, "revised wording", []Anchor{{Kind: AnchorKindText, Path: "#kpi", Quote: "revised"}})
+	if err != nil {
+		t.Fatalf("edit open comment: %v", err)
+	}
+	if edited.Body != "revised wording" || len(edited.Anchors) != 1 ||
+		edited.Anchors[0].Kind != AnchorKindText || edited.Quote != "revised" {
+		t.Fatalf("edit not applied: %+v", edited)
+	}
+
+	// Empty body is rejected.
+	if _, err := s.UpdateComment(c.ID, " ", nil); err == nil {
+		t.Fatalf("expected error for empty body on edit")
+	}
+
+	// A done comment can never be revised.
+	if _, err := s.UpdateCommentStatus(c.ID, CommentStatusDone); err != nil {
+		t.Fatalf("close: %v", err)
+	}
+	if _, err := s.UpdateComment(c.ID, "late revision", nil); err == nil {
+		t.Fatalf("expected error editing a done comment")
+	}
+}
