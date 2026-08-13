@@ -31,6 +31,7 @@ func TestPageViewHasCommentPanel(t *testing.T) {
 		`id="cpReplyTo"`,             // reply context line
 		`id="collectBtn"`,            // collect-mode toggle (HARB-35)
 		`collectSet`,                 // multi-anchor set logic
+		`window.__harbor`,            // Go→JS data seam for extracted pageview js (HARB-36)
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("page view missing %q", want)

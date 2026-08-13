@@ -39,9 +39,18 @@ func PageView(d PageViewData) string {
 	b.WriteString(`<div class="wrap"><iframe id="frame" src="` + e(d.RawURL) + `" title="` + esc(d.Title) + `"></iframe></div>`)
 	b.WriteString(commentPanelMarkup())
 	b.WriteString(changeTourMarkup())
+	// Per-page data seam for the extracted JS files (HARB-36). Go writes the
+	// dynamic context; the //go:embed'd pageview js reads window.__harbor.
+	if ctx, cerr := json.Marshal(struct {
+		Slug string `json:"slug"`
+	}{Slug: d.Slug}); cerr == nil {
+		b.WriteString(`<script>window.__harbor=`)
+		b.WriteString(string(ctx))
+		b.WriteString(`;</script>` + "\n")
+	}
 	b.WriteString(pageViewScript(d))
 	b.WriteString(commentPanelScript(d.Slug))
-	b.WriteString(changeTourScript(d.Slug))
+	b.WriteString(`<script>` + pageviewTourJS + `</script>` + "\n")
 	if d.Workspace != "" {
 		// Live-sync: reload this page's iframe (preserving scroll) when its
 		// content changes, and follow agent-driven navigation.
@@ -263,155 +272,6 @@ func changeTourMarkup() string {
 // it opens a stepper that scrolls to + highlights each change in sequence with
 // its title/description. Honors reduced motion and is skipped entirely (no tour,
 // no error) when the page has no changes or no matching markers.
-func changeTourScript(slug string) string {
-	slugLit, _ := json.Marshal(slug)
-	return `<script>
-(function(){
-  const slug=` + string(slugLit) + `;
-  const frame=document.getElementById('frame');
-  const btn=document.getElementById('cfBtn');
-  const card=document.getElementById('cfCard');
-  const stepEl=document.getElementById('cfStep');
-  const titleEl=document.getElementById('cfTitle');
-  const descEl=document.getElementById('cfDesc');
-  const prevBtn=document.getElementById('cfPrev');
-  const nextBtn=document.getElementById('cfNext');
-  const doneBtn=document.getElementById('cfDone');
-  const closeBtn=document.getElementById('cfClose');
-  const headEl=document.getElementById('cfHead');
-  const LIST_URL='/api/pages/'+encodeURIComponent(slug)+'/changes';
-  const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
-  // Single-mode coordinator (HARB-31): READER | TOUR | COMMENT are mutually
-  // exclusive. A shared window.harborModes records the active mode and fires a
-  // 'harbor-mode' event; each subsystem tears its own UI down when the OTHER
-  // mode claims the stage. Closers only revert to READER if they still own the
-  // mode, so a close-triggered-by-a-mode-claim never clobbers the claimer.
-  if(!window.harborModes){
-    window.harborModes={m:'reader',
-      get:function(){ return this.m; },
-      set:function(next){ if(next===this.m) return; var prev=this.m; this.m=next;
-        document.dispatchEvent(new CustomEvent('harbor-mode',{detail:{prev:prev,next:next}})); } };
-  }
-  function claimReader(){ if(window.harborModes&&window.harborModes.get()==='tour') window.harborModes.set('reader'); }
-  // If COMMENT claims the stage, the tour yields (closes cleanly).
-  document.addEventListener('harbor-mode',function(e){ if(e.detail.next==='comment') finish(); });
-  let all=[], matched=[], idx=-1, iframeReady=false;
-  let hlEl=null, styleTag=null;
-
-  function locate(id){
-    try{ const d=frame.contentDocument; if(!d) return null; return d.querySelector('[data-cf-change="'+String(id).replace(/"/g,'\\"')+'"]'); }
-    catch(_){ return null; }
-  }
-  function injectStyle(){
-    if(styleTag&&styleTag.parentNode) return;
-    try{ const d=frame.contentDocument; if(!d||!d.head) return;
-      const theme=document.documentElement.dataset.theme||'light';
-      const accent=(theme==='dark')?'#88c0d0':'#5e81ac';
-      const tint=(theme==='dark')?'rgba(136,192,208,.22)':'rgba(94,129,172,.15)';
-      styleTag=d.createElement('style'); styleTag.textContent=
-        '.cf-hl{outline:2px solid '+accent+'!important;outline-offset:1px!important;'+
-        'box-shadow:0 0 0 2px '+tint+',inset 0 0 0 600px '+tint+'!important;border-radius:2px}';
-      d.head.appendChild(styleTag);
-    }catch(_){}
-  }
-  function clearHl(){ if(hlEl){ hlEl.classList.remove('cf-hl'); hlEl=null; } }
-  function render(){
-    if(idx<0||idx>=matched.length) return;
-    const s=matched[idx];
-    const single=matched.length<=1;
-    // A single change has no Prev/Next destination, so neither the step counter
-    // nor the two nav buttons have anything to do (layers-interaction-flow:
-    // keep-it-minimal + every-affordance-has-a-named-destination). Dropping them
-    // avoids dead affordances; the card is just the change + Done/close. For
-    // multiple changes the boundary state stays *disabled* instead of hidden so
-    // the button row never shifts mid-tour while still signalling start/end.
-    stepEl.hidden = single;
-    if(!single) stepEl.textContent='Change '+(idx+1)+' of '+matched.length;
-    prevBtn.hidden = single;
-    nextBtn.hidden = single;
-    // Hiding just the step leaves a hollow header bar around the lone close
-    // button; drop the whole header so a single change renders as a clean
-    // title + description + Done card (Done is its own close affordance).
-    headEl.hidden = single;
-    titleEl.textContent=s.change.title||s.change.changeId;
-    descEl.textContent=s.change.description||(s.el?('Marked element: '+s.change.changeId):'');
-    clearHl();
-    if(s.el){
-      injectStyle(); hlEl=s.el; s.el.classList.add('cf-hl');
-      try{ s.el.scrollIntoView(REDUCED?{block:'center'}:{behavior:'smooth',block:'center'}); }catch(_){ try{s.el.scrollIntoView();}catch(_2){} }
-    }
-    positionCard();
-    // Smooth scroll is async; re-settle the card after it lands so the tooltip
-    // stays parked on the marker rather than floating where it started.
-    if(!REDUCED) setTimeout(positionCard, 350);
-    prevBtn.disabled=(idx===0);
-    nextBtn.disabled=(idx===matched.length-1);
-  }
-  // intro.js-style element anchoring. The marker lives inside the same-origin
-  // iframe, so its viewport rect in that document is translated by the iframe's
-  // own rect to get shell-viewport coordinates. The card parks above the marker
-  // (arrow pointing down at it); below when there isn't room. Horizontally it
-  // centers on the marker and clamps to the viewport. No translateX trickery —
-  // left/top are set in px every render.
-  function positionCard(){
-    card.classList.remove('cf-card--below');
-    if(idx<0||idx>=matched.length) return;
-    const el=matched[idx].el;
-    if(!el){ card.style.left='16px'; card.style.top=''; card.style.bottom='16px'; card.style.right=''; return; }
-    let fr,er;
-    try{ fr=frame.getBoundingClientRect(); er=el.getBoundingClientRect(); }catch(_){ return; }
-    const tx=fr.left+er.left, ty=fr.top+er.top;
-    const cw=card.offsetWidth||380, ch=card.offsetHeight||190, margin=12;
-    let left=tx+er.width/2-cw/2;
-    left=Math.max(8,Math.min(left,innerWidth-cw-8));
-    card.style.right=''; card.style.bottom=''; card.style.top='';
-    if(ty>ch+margin){
-      card.style.top=(ty-ch-margin)+'px';
-    } else {
-      card.style.top=(ty+er.height+margin)+'px';
-      card.classList.add('cf-card--below');
-    }
-    card.style.left=left+'px';
-  }
-  function go(i){ if(i<0||i>=matched.length) return; idx=i; render(); }
-  function doHide(){ card.classList.remove('cf-exit'); card.hidden=true; card.setAttribute('aria-hidden','true'); btn.hidden=false; }
-  // F1 (animation audit): entering animates (cf-in) but an instant hide made
-  // the exit a hard pop-out. Play the symmetric exit first, then hide. Reduced
-  // motion hides instantly (no movement).
-  function finish(){
-    claimReader();
-    clearHl();
-    if(REDUCED){ doHide(); return; }
-    if(card.classList.contains('cf-exit')){ doHide(); return; }
-    card.classList.add('cf-exit');
-    card.addEventListener('animationend', function once(){ card.removeEventListener('animationend', once); doHide(); });
-    setTimeout(doHide, 150); // safety net so the card can never hang open
-  }
-  function tryReady(){
-    if(!iframeReady||!all.length) return;
-    // Pair each change with its located marker (skip changes with no marker).
-    matched=all.map(function(c){ return {change:c, el:locate(c.changeId)}; }).filter(function(p){ return p.el; });
-    if(matched.length) btn.hidden=false;
-    else { /* changes exist but no markers -> no tour, no error */ }
-  }
-  prevBtn.addEventListener('click',()=>go(idx-1));
-  nextBtn.addEventListener('click',()=>go(idx+1));
-  doneBtn.addEventListener('click',finish);
-  closeBtn.addEventListener('click',finish);
-  btn.addEventListener('click',function(){ if(window.harborModes) window.harborModes.set('tour'); btn.hidden=true; card.classList.remove('cf-exit'); card.hidden=false; card.setAttribute('aria-hidden','false'); go(0); document.activeElement&&document.activeElement.blur&&document.activeElement.blur(); });
-  // Escape dismisses the tour like the comments sidebar: once in the shell and
-  // again inside the same-origin iframe (the highlight scrolls focus into it, so
-  // the key can land in either document). Calls finish(), which plays the exit.
-  function onTourKey(e){ if(e.key==='Escape' && !card.hidden){ e.preventDefault(); finish(); } }
-  document.addEventListener('keydown', onTourKey);
-  function wireFrameKeys(){ try{ if(frame.contentDocument){ frame.contentDocument.removeEventListener('keydown', onTourKey); frame.contentDocument.addEventListener('keydown', onTourKey); } }catch(_){} }
-  frame.addEventListener('load',function(){ iframeReady=true; wireFrameKeys(); if(btn.hidden) tryReady(); });
-  wireFrameKeys();
-  if(frame.contentDocument&&frame.contentDocument.readyState==='complete'){ iframeReady=true; }
-  fetch(LIST_URL).then(r=>r.json()).then(function(list){ all=Array.isArray(list)?list:[]; tryReady(); }).catch(function(){});
-})();</script>`
-}
-
 // commentPanelScript wires the comment panel: open/close with focus management,
 // same-origin capture of text selections and element picks inside the iframe,
 // POSTing submitted comments, and listing the page's existing comments. All
