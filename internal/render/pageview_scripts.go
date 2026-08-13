@@ -9,3 +9,6 @@ import _ "embed"
 //
 //go:embed pageview-tour.js
 var pageviewTourJS string
+
+//go:embed pageview-annotations.js
+var pageviewAnnotationsJS string
