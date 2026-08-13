@@ -50,6 +50,9 @@ func TestPageViewChangeTour(t *testing.T) {
 		`/api/pages/`,            // the tour fetches the page's changes JSON
 		"data-cf-change=",        // it locates markers read back from the iframe DOM
 		`prefers-reduced-motion`, // honors reduced motion
+		`window.harborModes`,   // single-mode coordinator (HARB-31)
+		`set('tour')`,          // opening the tour claims TOUR mode
+		`btn.disabled=tour`,    // commenting is suppressed during the tour
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("page view change tour missing %q", want)

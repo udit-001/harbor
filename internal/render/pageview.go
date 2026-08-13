@@ -242,6 +242,20 @@ func changeTourScript(slug string) string {
   const headEl=document.getElementById('cfHead');
   const LIST_URL='/api/pages/'+encodeURIComponent(slug)+'/changes';
   const REDUCED=matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Single-mode coordinator (HARB-31): READER | TOUR | COMMENT are mutually
+  // exclusive. A shared window.harborModes records the active mode and fires a
+  // 'harbor-mode' event; each subsystem tears its own UI down when the OTHER
+  // mode claims the stage. Closers only revert to READER if they still own the
+  // mode, so a close-triggered-by-a-mode-claim never clobbers the claimer.
+  if(!window.harborModes){
+    window.harborModes={m:'reader',
+      get:function(){ return this.m; },
+      set:function(next){ if(next===this.m) return; var prev=this.m; this.m=next;
+        document.dispatchEvent(new CustomEvent('harbor-mode',{detail:{prev:prev,next:next}})); } };
+  }
+  function claimReader(){ if(window.harborModes&&window.harborModes.get()==='tour') window.harborModes.set('reader'); }
+  // If COMMENT claims the stage, the tour yields (closes cleanly).
+  document.addEventListener('harbor-mode',function(e){ if(e.detail.next==='comment') finish(); });
   let all=[], matched=[], idx=-1, iframeReady=false;
   let hlEl=null, styleTag=null;
 
@@ -326,6 +340,7 @@ func changeTourScript(slug string) string {
   // the exit a hard pop-out. Play the symmetric exit first, then hide. Reduced
   // motion hides instantly (no movement).
   function finish(){
+    claimReader();
     clearHl();
     if(REDUCED){ doHide(); return; }
     if(card.classList.contains('cf-exit')){ doHide(); return; }
@@ -344,7 +359,7 @@ func changeTourScript(slug string) string {
   nextBtn.addEventListener('click',()=>go(idx+1));
   doneBtn.addEventListener('click',finish);
   closeBtn.addEventListener('click',finish);
-  btn.addEventListener('click',function(){ btn.hidden=true; card.classList.remove('cf-exit'); card.hidden=false; card.setAttribute('aria-hidden','false'); go(0); document.activeElement&&document.activeElement.blur&&document.activeElement.blur(); });
+  btn.addEventListener('click',function(){ if(window.harborModes) window.harborModes.set('tour'); btn.hidden=true; card.classList.remove('cf-exit'); card.hidden=false; card.setAttribute('aria-hidden','false'); go(0); document.activeElement&&document.activeElement.blur&&document.activeElement.blur(); });
   // Escape dismisses the tour like the comments sidebar: once in the shell and
   // again inside the same-origin iframe (the highlight scrolls focus into it, so
   // the key can land in either document). Calls finish(), which plays the exit.
@@ -383,6 +398,27 @@ func commentPanelScript(slug string) string {
   const clearBtn=document.getElementById('cpClear');
   const LIST_URL='/api/pages/'+encodeURIComponent(slug)+'/comments';
 
+  // Single-mode coordinator (HARB-31) — see change tour script for the shared
+  // window.harborModes. During TOUR, commenting is fully suppressed: the
+  // comment button disables, the selection pill hides, and the panel cannot
+  // open.
+  if(!window.harborModes){
+    window.harborModes={m:'reader',
+      get:function(){ return this.m; },
+      set:function(next){ if(next===this.m) return; var prev=this.m; this.m=next;
+        document.dispatchEvent(new CustomEvent('harbor-mode',{detail:{prev:prev,next:next}})); } };
+  }
+  function syncCommentSuppression(){
+    var tour=window.harborModes && window.harborModes.get()==='tour';
+    btn.disabled=tour;
+    if(tour){ hideAfford(); }
+  }
+  document.addEventListener('harbor-mode',function(e){
+    if(e.detail.next==='tour'){ hideAfford(); setOpen(false); }
+    syncCommentSuppression();
+  });
+  syncCommentSuppression();
+
   let open=false;
   let doc=null;
   // state: what the comment is anchored to (captured from the iframe).
@@ -403,8 +439,9 @@ func commentPanelScript(slug string) string {
     panel.setAttribute('aria-hidden',String(!v));
     btn.setAttribute('aria-expanded',String(v));
     document.body.classList.toggle('commenting',v);
-    if(v){ hideAfford(); showHeader(); body.focus(); loadList(); }
+    if(v){ if(window.harborModes) window.harborModes.set('comment'); hideAfford(); showHeader(); body.focus(); loadList(); }
     else {
+      if(window.harborModes && window.harborModes.get()==='comment') window.harborModes.set('reader');
       if(document.activeElement&&document.activeElement.closest('#commentPanel')) btn.focus();
       resetCompose();
     }
@@ -499,6 +536,7 @@ func commentPanelScript(slug string) string {
   }
   function showAfford(){
     if(open){ hideAfford(); return; }
+    if(window.harborModes && window.harborModes.get()==='tour'){ hideAfford(); return; }
     const w=frame.contentWindow, s=w&&w.getSelection();
     if(!s||s.isCollapsed||!s.rangeCount) return;
     const r=s.getRangeAt(0).getBoundingClientRect(); if(!r||(!r.width&&!r.height)) return;
@@ -547,6 +585,7 @@ func commentPanelScript(slug string) string {
   // never from a passive text selection. On open, adopt a live selection if one
   // exists so "select, then click comment" still anchors; otherwise whole-page.
   function toggleOpen(){
+    if(window.harborModes && window.harborModes.get()==='tour') return; // suppressed during the tour (HARB-31)
     if(!open){ adoptSelection(); }
     setOpen(!open);
   }
