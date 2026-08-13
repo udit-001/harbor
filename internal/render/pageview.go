@@ -42,22 +42,21 @@ func PageView(d PageViewData) string {
 	// Per-page data seam for the extracted JS files (HARB-36). Go writes the
 	// dynamic context; the //go:embed'd pageview js reads window.__harbor.
 	if ctx, cerr := json.Marshal(struct {
-		Slug string `json:"slug"`
-	}{Slug: d.Slug}); cerr == nil {
+		Slug      string `json:"slug"`
+		Workspace string `json:"workspace"`
+	}{Slug: d.Slug, Workspace: d.Workspace}); cerr == nil {
 		b.WriteString(`<script>window.__harbor=`)
 		b.WriteString(string(ctx))
 		b.WriteString(`;</script>` + "\n")
 	}
-	b.WriteString(pageViewScript(d))
+	b.WriteString(`<script>` + pageviewShellJS + `</script>` + "\n")
 	b.WriteString(`<script>` + pageviewAnnotationsJS + `</script>` + "\n")
 	b.WriteString(`<script>` + pageviewTourJS + `</script>` + "\n")
 	if d.Workspace != "" {
 		// Live-sync: reload this page's iframe (preserving scroll) when its
-		// content changes, and follow agent-driven navigation.
-		b.WriteString(liveSyncScript("workspace:"+d.Workspace, `{
-  pageChanged: function(ev){ if(ev.slug==='`+d.Slug+`'){ var f=document.getElementById('frame'); if(f&&f.contentWindow){ try{ var y=f.contentWindow.scrollY; f.addEventListener('load',function rst(){ f.removeEventListener('load',rst); try{ f.contentWindow.scrollTo(0,y); }catch(_){} }); f.contentWindow.location.reload(); }catch(_){} } } },
-  navigate: function(ev){ if(ev.url) location.href=ev.url; }
-}`))
+		// content changes, and follow agent-driven navigation. Reads the
+		// workspace/slug from the window.__harbor seam.
+		b.WriteString(`<script>` + pageviewLiveSyncJS + `</script>` + "\n")
 	}
 	b.WriteString(`</body></html>`)
 	return b.String()
@@ -100,52 +99,6 @@ func pageViewHeader(d PageViewData) string {
 	b.WriteString(`<a class="icon-btn" href="` + e(d.RawURL) + `" target="_blank" rel="noopener" title="Pop out" aria-label="Pop out">` + iconPopOut() + `</a>`)
 	b.WriteString(`</div></div>`)
 	return b.String()
-}
-
-func pageViewScript(d PageViewData) string {
-	return `<script>
-(function(){
-  const slug=document.body.dataset.slug;
-  const KEY='harbor_view_v2_'+slug; // v2: collapsed (container) is the default; ignores pre-v2 saved "full"
-  const pv=document.getElementById('pv');
-  let mode=localStorage.getItem(KEY)||'container';
-  // sync() sets the envelope mode AND the header state together, so toggling to
-  // full immediately slides the floating header away (no stuck overlap) and, while
-  // hidden, drops pointer-events so it never blocks the page's top strip. The
-  // header re-enters on hover along the same path.
-  const sync=()=>{
-    const full=(mode==='full');
-    document.body.classList.toggle('full', full);
-    hide();
-  };
-  function show(){ if(mode==='full') pv.classList.add('is-visible'); }
-  function hide(){ pv.classList.remove('is-visible'); }
-  sync();
-  document.getElementById('modeBtn').addEventListener('click',()=>{
-    mode=(mode==='full')?'container':'full';
-    localStorage.setItem(KEY,mode);
-    sync(); // envelope only — iframe src untouched, page not reloaded
-  });
-  // Reveal on hovering the top "peek" band; dismissing chrome on peek-away.
-  document.body.addEventListener('mouseenter', show);
-  document.body.addEventListener('mouseleave', hide);
-  // In full mode the iframe fills the viewport, so interacting with or scrolling
-  // the content must dismiss the header (the pointer lives inside the iframe,
-  // not the outer body). Same-origin: attach capture listeners on the iframe's
-  // contentWindow — always available, and they catch events from within the
-  // loaded document without depending on document-readiness timing.
-  const PEEK=60;
-  function wireFrame(){
-    var w;
-    try{ w=document.getElementById('frame').contentWindow; }catch(_){ return; }
-    if(!w) return;
-    w.addEventListener('scroll', hide, true);
-    w.addEventListener('pointerdown', hide, true);
-    w.addEventListener('keydown', hide, true);
-    w.addEventListener('mousemove', function(e){ if(e.clientY<PEEK) show(); else hide(); }, true);
-  }
-  wireFrame();
-})();</script>`
 }
 
 func iconPrev() string {
