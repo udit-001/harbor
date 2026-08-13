@@ -78,7 +78,7 @@ func TestPageAddImportRoundTrip(t *testing.T) {
 
 	// Managed copy landed in the sandboxed store, and body text was extracted
 	// from it (script content must NOT leak into the FTS body).
-	managed := filepath.Join(home, ".harbor", "store", "ws", "totals-chart.html")
+	managed := managedPagePath("ws", "totals-chart")
 	if _, err := os.Stat(managed); err != nil {
 		t.Fatalf("managed file not written at %s: %v", managed, err)
 	}
@@ -178,7 +178,7 @@ func TestPageUpdateFileReplacesContent(t *testing.T) {
 	_ = runWithStore(t, []string{"page", "add", old, "--workspace", "ws",
 		"--title", "totals chart", "--description", "a chart"}, store)
 
-	managed := filepath.Join(home, ".harbor", "store", "ws", "totals-chart.html")
+	managed := managedPagePath("ws", "totals-chart")
 	data, err := os.ReadFile(managed)
 	if err != nil {
 		t.Fatalf("managed file missing after add: %v", err)
@@ -286,5 +286,79 @@ func TestPageUpdateFileEmptyErrors(t *testing.T) {
 	}
 	if !strings.Contains(err.Error(), "empty") {
 		t.Fatalf("error should call out empty content, got: %s", err.Error())
+	}
+}
+
+// A metadata-only update (no --file) must NOT touch body text: without the
+// else-branch re-extraction, update only touches metadata, so the search
+// index must still find the original content.
+func TestPageUpdateMetadataOnlyKeepsBodyText(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	store, cleanup := newTestStore(t)
+	defer cleanup()
+
+	if _, err := store.CreateWorkspace("ws", "ws", "the work", filepath.Join(home, "wsdir")); err != nil {
+		t.Fatalf("seed workspace: %v", err)
+	}
+
+	src := writeBodyFile(t, "<html><body><p>metadata only keeps me searchable</p></body></html>")
+	_ = runWithStore(t, []string{"page", "add", src, "--workspace", "ws",
+		"--title", "totals chart"}, store)
+
+	// Metadata-only update: status flips, body text must stay indexed.
+	out := runWithStore(t, []string{"page", "update", "totals-chart", "--status", "published"}, store)
+	if !strings.Contains(out, "Page updated") {
+		t.Fatalf("update missing confirmation:\n%s", out)
+	}
+	if got := runWithStore(t, []string{"page", "list", "--search", "metadata only keeps"}, store); !strings.Contains(got, "totals-chart") {
+		t.Fatalf("metadata-only update dropped body text from search:\n%s", got)
+	}
+}
+
+// The documented combo --file + --status must apply both halves: content push
+// AND the metadata flip, in one command.
+func TestPageUpdateFileWithStatusCombo(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	store, cleanup := newTestStore(t)
+	defer cleanup()
+
+	if _, err := store.CreateWorkspace("ws", "ws", "the work", filepath.Join(home, "wsdir")); err != nil {
+		t.Fatalf("seed workspace: %v", err)
+	}
+
+	src := writeBodyFile(t, "<html><body><p>old body marker text</p></body></html>")
+	_ = runWithStore(t, []string{"page", "add", src, "--workspace", "ws",
+		"--title", "totals chart"}, store)
+
+	newSrc := writeBodyFile(t, "<html><body><p>combo new body marker text</p></body></html>")
+	out := runWithStore(t, []string{"page", "update", "totals-chart", "--file", newSrc, "--status", "published"}, store)
+	if !strings.Contains(out, "Page updated") {
+		t.Fatalf("update missing confirmation:\n%s", out)
+	}
+
+	// Managed file replaced with new content.
+	managed := managedPagePath("ws", "totals-chart")
+	data, err := os.ReadFile(managed)
+	if err != nil {
+		t.Fatalf("managed file missing after combo update: %v", err)
+	}
+	if !strings.Contains(string(data), "combo new body marker text") {
+		t.Fatalf("managed file not replaced with new content:\n%s", data)
+	}
+
+	// Search finds the new body, not the old.
+	if got := runWithStore(t, []string{"page", "list", "--search", "combo new body"}, store); !strings.Contains(got, "totals-chart") {
+		t.Fatalf("search for new content missed the page:\n%s", got)
+	}
+	if got := runWithStore(t, []string{"page", "list", "--search", "old body marker"}, store); strings.Contains(got, "totals-chart") {
+		t.Fatalf("search still returns stale body text:\n%s", got)
+	}
+
+	// Status flipped to published.
+	read := runWithStore(t, []string{"page", "read", "totals-chart", "--json"}, store)
+	if !strings.Contains(read, "\"status\": \"published\"") {
+		t.Fatalf("status not flipped to published:\n%s", read)
 	}
 }

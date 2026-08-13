@@ -22,6 +22,47 @@ func managedPagePath(workspaceName, slug string) string {
 	return filepath.Join(managedStoreDir(workspaceName), slug+".html")
 }
 
+// stageManagedPage writes page HTML to a temp file beside the managed page
+// path, ready to be renamed into place by commitManagedPage. Staging happens
+// before the DB commit and the rename after, so a failed update can never
+// leave the served file ahead of the index. Returns the temp path.
+func stageManagedPage(workspace, slug string, data []byte) (string, error) {
+	dir := managedStoreDir(workspace)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", formatError("failed to create managed store directory", err)
+	}
+	tmp, err := os.CreateTemp(dir, slug+"-*.tmp")
+	if err != nil {
+		return "", formatError("failed to stage page content", err)
+	}
+	tmpPath := tmp.Name()
+	if err := tmp.Chmod(0o644); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return "", formatError("failed to stage page content", err)
+	}
+	if _, err := tmp.Write(data); err != nil {
+		tmp.Close()
+		os.Remove(tmpPath)
+		return "", formatError("failed to stage page content", err)
+	}
+	if err := tmp.Close(); err != nil {
+		os.Remove(tmpPath)
+		return "", formatError("failed to stage page content", err)
+	}
+	return tmpPath, nil
+}
+
+// commitManagedPage atomically renames a staged temp file into the managed
+// page path. The rename flips the served file in one step — a crash mid-write
+// can never leave a truncated page on disk.
+func commitManagedPage(workspace, slug, tmpPath string) error {
+	if err := os.Rename(tmpPath, managedPagePath(workspace, slug)); err != nil {
+		return formatError("failed to write page to managed store", err)
+	}
+	return nil
+}
+
 var pageCmd = &cobra.Command{
 	Use:   "page",
 	Short: "Manage library pages",
@@ -85,13 +126,15 @@ Examples:
 			return formatError("failed to read source file", err)
 		}
 
-		if err := os.MkdirAll(managedStoreDir(workspaceName), 0o755); err != nil {
-			return formatError("failed to create managed store directory", err)
+		staged, serr := stageManagedPage(workspaceName, slug, data)
+		if serr != nil {
+			return serr
+		}
+		defer os.Remove(staged)
+		if err := commitManagedPage(workspaceName, slug, staged); err != nil {
+			return err
 		}
 		managedPath := managedPagePath(workspaceName, slug)
-		if err := os.WriteFile(managedPath, data, 0o644); err != nil {
-			return formatError("failed to import page", err)
-		}
 
 		description, _ := cmd.Flags().GetString("description")
 		context, _ := cmd.Flags().GetString("context")
@@ -196,8 +239,7 @@ Use --title to rename, --description/--context to refresh provenance, --status
 to change readiness (draft/published/archived), and repeat --tag to replace the
 full tag set. Pass --file <path> to replace the page's HTML content: the new
 file is copied into the managed store (what the dashboard serves) and its body
-text is re-indexed. Body text is otherwise re-extracted from the managed file
-if it exists.
+text is re-indexed.
 
 Examples:
   harbor page update monthly-totals --description "revised chart"
@@ -245,44 +287,47 @@ Examples:
 
 		// The managed file is the content harbor serves; resolve its workspace
 		// before touching the store so failures surface loudly.
-		wsName, err := s.GetWorkspace(page.WorkspaceID)
+		ws, err := s.GetWorkspace(page.WorkspaceID)
 		if err != nil {
 			return formatError("failed to resolve page workspace", err)
 		}
 
 		// Content push: --file replaces the managed HTML and re-indexes its body
 		// text in one step — the one command that makes an edit reach the human.
+		// The new content is staged beside the managed path, then renamed into
+		// place only after the DB update commits below, so a failed update can
+		// never leave the served page ahead of the index (view/search disagreeing).
+		var staged string
 		var bodyText *string
 		if filePath != "" {
 			data, rerr := os.ReadFile(filePath)
 			if rerr != nil {
-				return fmt.Errorf("failed to read --file %q: %w", filePath, rerr)
+				return formatError("failed to read --file", rerr)
 			}
 			if strings.TrimSpace(string(data)) == "" {
-				return fmt.Errorf("--file %q is empty (0 bytes of content) — refusing to blank the page", filePath)
+				return fmt.Errorf("--file %q is empty or blank — refusing to blank the page", filePath)
 			}
-			if err := os.MkdirAll(managedStoreDir(wsName.Name), 0o755); err != nil {
-				return formatError("failed to create managed store directory", err)
+			var serr error
+			staged, serr = stageManagedPage(ws.Name, slug, data)
+			if serr != nil {
+				return serr
 			}
-			if err := os.WriteFile(managedPagePath(wsName.Name, slug), data, 0o644); err != nil {
-				return formatError("failed to replace page content", err)
-			}
+			defer os.Remove(staged)
 			bt := extract.FromHTML(string(data))
 			bodyText = &bt
-		} else {
-			// Idempotent index refresh: re-extract body text from the managed file
-			// if it exists (the page's HTML may have changed on disk).
-			if data, rerr := os.ReadFile(managedPagePath(wsName.Name, slug)); rerr == nil {
-				bt := extract.FromHTML(string(data))
-				bodyText = &bt
-			}
 		}
 
 		updated, err := s.UpdatePage(slug, title, description, context, status, nil, bodyText, tags)
 		if err != nil {
 			return formatError("failed to update page", err)
 		}
-		notifyPage(wsName.Name, updated.Slug)
+
+		if staged != "" {
+			if err := commitManagedPage(ws.Name, slug, staged); err != nil {
+				return err
+			}
+		}
+		notifyPage(ws.Name, updated.Slug)
 
 		if jsonEnabled(cmd) {
 			return printPageJSON(s, updated)
@@ -310,7 +355,7 @@ Examples:
 		if err != nil {
 			return formatError("page not found", err)
 		}
-		wsName, err := s.GetWorkspace(page.WorkspaceID)
+		ws, err := s.GetWorkspace(page.WorkspaceID)
 		if err != nil {
 			return formatError("failed to resolve page workspace", err)
 		}
@@ -318,8 +363,8 @@ Examples:
 		if err := s.DeletePage(slug); err != nil {
 			return formatError("failed to delete page", err)
 		}
-		_ = os.Remove(managedPagePath(wsName.Name, slug)) // best-effort file cleanup
-		notifyPage(wsName.Name, slug)
+		_ = os.Remove(managedPagePath(ws.Name, slug)) // best-effort file cleanup
+		notifyPage(ws.Name, slug)
 
 		if jsonEnabled(cmd) {
 			printJSON(map[string]any{"slug": slug, "deleted": true})
