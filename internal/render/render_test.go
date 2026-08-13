@@ -26,6 +26,9 @@ func TestPageViewHasCommentPanel(t *testing.T) {
 		`id="cpInline"`,              // inline compose box (HARB-32)
 		`id="cpInlineBody"`,          // inline compose textarea
 		`css/app.css`,                // Tailwind utilities seeded onto the page view
+		`cp-item-actions`,            // per-item Jump/Edit/Done/Reply (HARB-34)
+		`data-act="jump"`,            // list item action buttons
+		`id="cpReplyTo"`,             // reply context line
 	} {
 		if !strings.Contains(out, want) {
 			t.Errorf("page view missing %q", want)

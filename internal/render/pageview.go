@@ -182,6 +182,7 @@ func commentPanelMarkup() string {
     <!-- Compose pane (whole-doc via New comment; anchored via the pill). -->
     <div class="cp-pane" id="cpComposePane" hidden>
       <div class="cp-capture" id="cpCapture">Click an element in the page, or select its text, to anchor your comment — then type and post.</div>
+      <div class="cp-replyto" id="cpReplyTo" hidden></div>
       <div class="cp-row">
         <select id="cpType" aria-label="Comment type">
           <option value="general">Whole page</option>
@@ -463,6 +464,9 @@ func commentPanelScript(slug string) string {
   const inlinePost=document.getElementById('cpInlinePost');
   const inlineCancel=document.getElementById('cpInlineCancel');
   const inlineClose=document.getElementById('cpInlineClose');
+  const inlineTitle=document.getElementById('cpInlineTitle');
+  let replyParent=0;   // comment id this draft replies to (reply thread, HARB-20/34)
+  let editID=0;        // when >0 the inline box edits this open comment (PATCH)
   function mapStateAnchor(){ return {kind:state.type==='selection'?'text':(state.type==='element'?'element':'document'), path:state.anchor, quote:state.quote}; }
   function inlineResolved(){ return window.harborResolveAnchor ? window.harborResolveAnchor(mapStateAnchor()) : null; }
   function positionInline(){
@@ -489,16 +493,17 @@ func commentPanelScript(slug string) string {
   }
   function hideInline(){ inlineBox.hidden=true; inlineBox.setAttribute('aria-hidden','true'); }
   function cancelInline(){
-    hideInline(); resetCompose();
+    hideInline(); editID=0; replyParent=0; setReplyContext(0); resetCompose();
     if(window.harborModes && window.harborModes.get()==='comment') window.harborModes.set('reader');
   }
   function postInline(){
     var text=inlineBody.value.trim(); if(!text) return;
     inlineErr.hidden=true; inlinePost.disabled=true;
-    fetch(LIST_URL,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({type:state.type,anchor:state.anchor,quote:state.quote,body:text})})
+    var method='POST', url=LIST_URL, payload={type:state.type,anchor:state.anchor,quote:state.quote,body:text,replyTo:replyParent};
+    if(editID){ method='PATCH'; url=LIST_URL+'/'+editID; payload={body:text, anchors:[mapStateAnchor()]}; }
+    fetch(url,{method:method,headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
       .then(function(r){ if(!r.ok) return r.json().then(function(j){ return Promise.reject(j&&j.error); }).catch(function(){ return Promise.reject('could not save comment ('+r.status+')'); }); return r.json(); })
-      .then(function(){ hideInline(); resetCompose(); dropPickStyle(); setOpen(true); bumpOpenFb(); }) // drawer opens to the list so it lands visibly
+      .then(function(){ hideInline(); editID=0; replyParent=0; setReplyContext(0); resetCompose(); dropPickStyle(); setOpen(true); bumpOpenFb(); }) // drawer opens to the list so it lands visibly
       .catch(function(m){ inlineErr.textContent=m; inlineErr.hidden=false; })
       .finally(function(){ inlinePost.disabled=false; });
   }
@@ -834,9 +839,9 @@ func commentPanelScript(slug string) string {
     const submit=document.getElementById('cpSubmit');
     submit.disabled=true;
     fetch(LIST_URL,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({type:state.type,anchor:state.anchor,quote:state.quote,body:text})})
+      body:JSON.stringify({type:state.type,anchor:state.anchor,quote:state.quote,body:text,replyTo:replyParent})})
       .then(r=>{ if(!r.ok) return r.json().then(j=>Promise.reject(j&&j.error)).catch(()=>Promise.reject('could not save comment ('+r.status+')')); return r.json(); })
-      .then(()=>{ resetCompose(); showView('list'); loadList(); bumpOpenFb(); })
+      .then(()=>{ resetCompose(); replyParent=0; setReplyContext(0); showView('list'); loadList(); bumpOpenFb(); })
       .catch(m=>{ errEl.textContent=m; errEl.classList.add('show'); })
       .finally(()=>{ submit.disabled=false; });
   });
@@ -858,20 +863,99 @@ func commentPanelScript(slug string) string {
 
   // List existing comments for the page.
   function escHTML(s){ return String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  // List-item actions (HARB-34): anchor line + Jump/Edit/Done/Reply, wired via
+  // one delegated click handler. Edit is open-only; done comments are never
+  // revised (use Reply instead); Reply starts a new comment citing the parent.
+  var itemsById={};
+  var jumpIdx={};
+  function firstAnchorLabel(a){ if(!a) return ''; if(a.kind==='text') return a.quote||a.path||'text selection'; if(a.kind==='element') return a.path||'element'; return 'whole page'; }
+  function anchorLabel(c){
+    var a=c.anchors||[];
+    if(a.length>1) return a.length+' spots';
+    if(a.length===1) return firstAnchorLabel(a[0]);
+    if(c.quote) return c.quote;
+    if(c.type==='selection') return c.anchor||'text selection';
+    if(c.type==='element') return c.anchor||'element';
+    return 'whole page';
+  }
+  function aKindFor(c){ var a=(c.anchors&&c.anchors[0])||{}; return a.kind||(c.type==='selection'?'text':(c.type==='element'?'element':'document')); }
+  function itemActions(c){
+    var out='<button type="button" class="cp-act" data-act="jump">Jump</button>';
+    if(c.status==='open') out+='<button type="button" class="cp-act" data-act="edit">Edit</button>';
+    out+='<button type="button" class="cp-act" data-act="'+(c.status==='done'?'reopen':'done')+'">'+(c.status==='done'?'Reopen':'Done')+'</button>';
+    out+='<button type="button" class="cp-act" data-act="reply">Reply</button>';
+    return out;
+  }
+  function setReplyContext(id){
+    var el=document.getElementById('cpReplyTo'); if(!el) return;
+    if(id){ el.textContent='Replying to comment #'+id; el.hidden=false; }
+    else { el.textContent=''; el.hidden=true; }
+  }
+  function openReply(c){
+    hideInline(); replyParent=c.id; editID=0; resetCompose(); setReplyContext(c.id);
+    showView('compose'); titleEl.textContent='Reply'; body.focus();
+  }
+  function openEdit(c){
+    if(c.status!=='open') return;
+    hideInline(); editID=c.id; replyParent=0;
+    var a=(c.anchors&&c.anchors[0])||{};
+    state={type:aKindFor(c)==='text'?'selection':(aKindFor(c)==='element'?'element':'general'), anchor:a.path||'', quote:a.quote||''};
+    inlineBody.value=c.body; inlineTitle.textContent='Edit comment'; inlineWhere.textContent=anchorLabel(c);
+    renderState(); showInline();
+  }
+  function patchStatus(id,status){
+    fetch(LIST_URL+'/'+id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:status})})
+      .then(function(r){ if(!r.ok) return Promise.reject('update failed'); return r.json(); })
+      .then(function(){ loadList(); })
+      .catch(function(){});
+  }
+  function jumpTo(c){
+    var a=c.anchors||[];
+    if(!a.length && c.type){ a=[{kind:c.type==='selection'?'text':(c.type==='element'?'element':'document'), path:c.anchor, quote:c.quote}]; }
+    if(!a.length) return;
+    var i=(jumpIdx[c.id]||0)%a.length; jumpIdx[c.id]=i+1;
+    var res=window.harborResolveAnchor&&window.harborResolveAnchor(a[i]);
+    if(!res||!res.el) return;
+    var el=res.el;
+    try{ el.scrollIntoView({behavior:'smooth',block:'center'}); }catch(_){ try{el.scrollIntoView();}catch(_2){} }
+    flashEl(el);
+  }
+  var jumpStyle=null;
+  function flashEl(el){
+    try{
+      var d=frame.contentDocument; if(!d||!d.head) return;
+      if(!jumpStyle){ jumpStyle=d.createElement('style'); jumpStyle.textContent='.cp-jump{outline:2px solid #5e81ac!important;outline-offset:1px!important;box-shadow:0 0 0 2px rgba(94,129,172,.28),inset 0 0 0 300px rgba(94,129,172,.18)!important;border-radius:2px}'; d.head.appendChild(jumpStyle); }
+      el.classList.add('cp-jump');
+      setTimeout(function(){ el.classList.remove('cp-jump'); }, 1500);
+    }catch(_){}
+  }
+  listEl.addEventListener('click',function(e){
+    var btn=e.target.closest&&e.target.closest('.cp-act'); if(!btn) return;
+    var li=btn.closest('.cp-item'); if(!li) return;
+    var c=itemsById[parseInt(li.dataset.id,10)]; if(!c) return;
+    var act=btn.dataset.act;
+    if(act==='jump') jumpTo(c);
+    else if(act==='edit') openEdit(c);
+    else if(act==='done'||act==='reopen') patchStatus(c.id, act==='reopen'?'open':'done');
+    else if(act==='reply') openReply(c);
+  });
   function loadList(){
     var url=LIST_URL + (filter==='all' ? '' : '?status='+encodeURIComponent(filter));
     fetch(url).then(r=>r.json()).then(items=>{
       listHeadEl.hidden = (items.length===0);
-      listEl.innerHTML='';
+      listEl.innerHTML=''; itemsById={};
       if(!items.length){ listEl.innerHTML='<li class="cp-empty">No comments yet.</li>'; return; }
       for(const c of items){
         const li=document.createElement('li');
-        li.className='cp-item';
+        li.className='cp-item'; li.dataset.id=String(c.id);
         const head=document.createElement('div'); head.className='cp-item-head';
         head.innerHTML='<span class="cp-item-type">'+escHTML(c.type)+'</span><span class="cp-item-status'+(c.status==='done'?' done':'')+'">'+escHTML(c.status)+'</span>';
         const b=document.createElement('div'); b.className='cp-item-body'; b.textContent=c.body;
         li.appendChild(head); li.appendChild(b);
-        if(c.quote){ const q=document.createElement('div'); q.className='cp-item-quote'; q.textContent=c.quote; li.appendChild(q); }
+        const aL=document.createElement('div'); aL.className='cp-item-a'; aL.textContent=anchorLabel(c); li.appendChild(aL);
+        if(c.quote && !(c.anchors||[]).length){ const q=document.createElement('div'); q.className='cp-item-quote'; q.textContent=c.quote; li.appendChild(q); }
+        const acts=document.createElement('div'); acts.className='cp-item-actions'; acts.innerHTML=itemActions(c); li.appendChild(acts);
+        itemsById[c.id]=c;
         listEl.appendChild(li);
       }
     }).catch(()=>{});
@@ -1009,6 +1093,13 @@ font:600 13px var(--font);cursor:pointer}
 .cp-item-status.done{color:var(--ok)}
 .cp-item-body{font-size:13px;color:var(--text);line-height:1.6}
 .cp-item-quote{font-size:12px;font-style:italic;color:var(--muted);line-height:1.55;border-left:2px solid var(--border);padding:1px 0 1px 9px;margin-top:10px}
+/* List-item actions (HARB-34): anchor line + Jump/Edit/Done/Reply. */
+.cp-item-a{font-size:12px;color:var(--acc);background:var(--acc-soft);border-radius:4px;padding:3px 7px;margin-top:8px;overflow-wrap:anywhere}
+.cp-item-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.cp-act{border:1px solid var(--border);background:var(--surface);color:var(--muted);border-radius:var(--rs);padding:4px 9px;font:600 11px var(--font);cursor:pointer;transition:color .1s,background .1s,border-color .1s}
+.cp-act:hover{color:var(--strong);background:var(--surface2);border-color:var(--text)}
+.cp-replyto{margin:0 0 10px;font-size:12px;color:var(--muted);background:var(--surface2);border-radius:var(--rs);padding:8px 10px}
+.cp-replyto[hidden]{display:none}
 .cp-empty{font-size:12.5px;color:var(--muted)}
 /* ── What-changed walkthrough ──
    Styled to match the shell's flat Nord surfaces (comment panel + header):
