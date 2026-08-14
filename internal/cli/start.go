@@ -91,12 +91,13 @@ Examples:
 				return fmt.Errorf("failed to start background server: %w", err)
 			}
 
-			// Wait briefly for server to come up
-			time.Sleep(500 * time.Millisecond)
-
-			// Find the actual port from the PID file
-			if info, err := readPidFile(); err == nil {
-				port = info.Port
+			// Wait for the daemon to actually serve before reporting success.
+			// The daemon binds in ~15ms on a warm machine, so a fixed sleep was
+			// both slow (~500ms of pure latency per start) and racy (returned
+			// before the server was up on slow machines, printing a URL that
+			// 404s). Polling returns exactly when the port accepts.
+			if err := waitForServer(port, daemonReadyTimeout); err != nil {
+				return fmt.Errorf("background server failed to come up: %w", err)
 			}
 
 			url := dashboardURL(s, port)
@@ -178,6 +179,32 @@ func readPidFile() (*pidInfo, error) {
 		return nil, err
 	}
 	return &info, nil
+}
+
+// daemonReadyTimeout bounds how long `harbor start` waits for the
+// background daemon to accept connections before reporting failure.
+const daemonReadyTimeout = 5 * time.Second
+
+// waitForServer polls 127.0.0.1:port until an HTTP request succeeds or the
+// timeout elapses. Used after spawning the background daemon so the printed
+// URL is guaranteed to be serving: the daemon binds within ~15ms on a warm
+// machine, and a fixed sleep either wasted ~500ms per start or returned too
+// early on slow machines.
+func waitForServer(port int, timeout time.Duration) error {
+	deadline := time.Now().Add(timeout)
+	client := &http.Client{Timeout: 250 * time.Millisecond}
+	url := fmt.Sprintf("http://127.0.0.1:%d/", port)
+	for {
+		resp, err := client.Get(url)
+		if err == nil {
+			resp.Body.Close()
+			return nil
+		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("no response on %s after %s (last error: %w)", url, timeout, err)
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 }
 
 // isServerRunning checks if a server is actually listening on the given port.
