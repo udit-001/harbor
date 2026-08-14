@@ -190,12 +190,19 @@
   // Selection popup "＋ Add": append this selection to a multi-spot set and
   // enter the gathering state (picker cursor + N-spots chip + dashed pins).
   function addToSetFromSelection(){
-    const w=frame.contentWindow, sel=w&&w.getSelection();
-    const text=sel?sel.toString().trim():'';
+    // Prefer the snapshot captured when the pill appeared (showAfford) over a
+    // live re-read: a shell mousedown on the pill can collapse the iframe
+    // selection in some browsers, so the live selection is not reliable here.
+    var pc=pendingComment, text='', path='';
+    if(pc && pc.quote){ text=pc.quote; path=pc.anchor; }
+    else {
+      const w=frame.contentWindow, sel=w&&w.getSelection();
+      text=sel?sel.toString().trim():'';
+      if(text){ const an=sel.anchorNode; const el=an?(an.nodeType===1?an:an.parentElement):null; path=cssPath(el||(frame.contentDocument&&frame.contentDocument.body)); }
+    }
     hideAfford();
     if(!text) return;
-    const an=sel.anchorNode; const el=an?(an.nodeType===1?an:an.parentElement):null;
-    addPin({kind:'text', path:cssPath(el||(frame.contentDocument&&frame.contentDocument.body)), quote:text});
+    addPin({kind:'text', path:path, quote:text});
     setCollecting(true);
     showHeader();
   }
@@ -388,7 +395,6 @@
     requestAnimationFrame(function(){ pill.style.opacity='1'; if(!REDUCED) pill.style.transform='scale(1)'; });
   }
   function hideAfford(){
-    doneCommentIntent();
     if(!afford) return;
     var el=afford; afford=null;
     if(!el.parentNode) return;
@@ -396,7 +402,12 @@
     el.style.opacity='0'; el.style.transform='scale(.9)';
     setTimeout(function(){ if(el.parentNode) el.parentNode.removeChild(el); }, 80);
   }
-  function doneCommentIntent(){ pendingComment=null; }
+  // pendingComment is the snapshot captured at showAfford (anchor + quote). It is
+  // deliberately NOT cleared when the pill fades: a shell mousedown on the pill (or
+  // a browser collapsing the iframe selection on it) fires selectionchange ->
+  // hideAfford before the click lands, and the Comment/→Add actions must still be
+  // able to open from the snapshot instead of a now-empty live selection. It is
+  // always overwritten by the next showAfford.
   function openCommentFromSelection(){
     if(pendingComment){ const p=pendingComment; hideAfford(); state={type:'selection',anchor:p.anchor,quote:p.quote}; renderState(); showInline(); return; }
     // Fallback: read a still-live selection if the pill's captured snapshot is gone.
@@ -562,7 +573,17 @@
   frame.addEventListener('mouseleave',clearHover);
   // Clicking anywhere in the shell chrome (or outside the inline box while it's
   // open) dismisses the affordance / discards the inline draft (HARB-23).
-  document.addEventListener('mousedown',(e)=>{ if(e.target!==afford && !(inlineBox&&inlineBox.contains(e.target))){ hideAfford(); if(!inlineBox.hidden && !collecting) cancelInline(); } },true);
+  // Dismiss the affordance / discard the inline draft on a shell mousedown
+  // anywhere EXCEPT inside the affordance pill or the inline box. The pill's
+  // action buttons are children of `afford`, so a press on them must be
+  // treated as inside — otherwise this would hide the pill and discard
+  // `pendingComment` before the click, falling back to a live selection that a
+  // shell mousedown may have collapsed (selection comment + collect stuck).
+  document.addEventListener('mousedown',(e)=>{
+    const inAfford=!!(afford&&afford.contains(e.target));
+    const inInline=!!(inlineBox&&inlineBox.contains(e.target));
+    if(!inAfford && !inInline){ hideAfford(); if(!inlineBox.hidden && !collecting) cancelInline(); }
+  },true);
 
   // Submit the pending comment.
   form.addEventListener('submit',(e)=>{
