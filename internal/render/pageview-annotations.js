@@ -708,9 +708,14 @@
       listEl.innerHTML=''; itemsById={};
       if(!items.length){
         var title='', note='';
-        if(filter==='all'){ title='No comments yet'; note='Select text in the page to comment on that spot, or use the <b>+ New comment</b> button above to flag the whole page.'; }
-        else if(filter==='open'){ title='No open comments'; note='Open feedback is listed here. Switch to <b>All</b> or <b>Done</b> to see earlier comments.'; }
-        else { title='No resolved comments'; note='Comments you mark <b>Done</b> show up here.'; }
+        // Copy follows the app's empty-state pattern (state + what to do next)
+        // and the model's ubiquitous language: the object is a "comment";
+        // status is "Open" / "Done" (not "resolved"); anchors are a text
+        // selection, an element, or the whole page; the affordance is
+        // "+ New comment". One boxed card, no inline CTA.
+        if(filter==='all'){ title='No comments yet'; note='Select a bit of text in the page to comment on it, or use the <b>+ New comment</b> button above to comment on the whole page.'; }
+        else if(filter==='open'){ title='No open comments'; note='Open comments show up here. Switch to <b>All</b> or <b>Done</b> to see the rest.'; }
+        else { title='No done comments'; note='Comments you mark <b>Done</b> show up here. Switch to <b>All</b> or <b>Open</b> to see the rest.'; }
         // Boxed empty state matching the app's library empty pattern (dashed
         // frame, title + note). No inline CTA — "+ New comment" already lives
         // in the sidebar toolbar above this list.
