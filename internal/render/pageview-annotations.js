@@ -707,12 +707,14 @@
       listHeadEl.hidden = (items.length===0);
       listEl.innerHTML=''; itemsById={};
       if(!items.length){
-        var eTitle, eNote, eAction='';
-        if(filter==='all'){ eTitle='No comments yet'; eNote='Select some text in the page to comment on that spot, or press ＋ New comment to flag the whole page.'; eAction='<button type="button" class="cp-empty-action" id="cpEmptyNew">＋ New comment</button>'; }
-        else if(filter==='open'){ eTitle='No open comments'; eNote='Open feedback is listed here. Switch to <b>All</b> or <b>Done</b> to see earlier comments.'; eAction='<button type="button" class="cp-empty-action" id="cpEmptyNew">＋ New comment</button>'; }
-        else { eTitle='No resolved comments'; eNote='Comments you mark <b>Done</b> show up here.'; }
-        listEl.innerHTML='<li class="cp-empty"><div class="cp-empty-title">'+eTitle+'</div><p class="cp-empty-note">'+eNote+'</p>'+eAction+'</li>';
-        var nb=document.getElementById('cpEmptyNew'); if(nb) nb.addEventListener('click',function(){ newBtn.click(); });
+        var title='', note='';
+        if(filter==='all'){ title='No comments yet'; note='Select text in the page to comment on that spot, or use the <b>+ New comment</b> button above to flag the whole page.'; }
+        else if(filter==='open'){ title='No open comments'; note='Open feedback is listed here. Switch to <b>All</b> or <b>Done</b> to see earlier comments.'; }
+        else { title='No resolved comments'; note='Comments you mark <b>Done</b> show up here.'; }
+        // Boxed empty state matching the app's library empty pattern (dashed
+        // frame, title + note). No inline CTA — "+ New comment" already lives
+        // in the sidebar toolbar above this list.
+        listEl.innerHTML='<li class="cp-empty"><div class="cp-empty-title">'+title+'</div><p class="cp-empty-note">'+note+'</p></li>';
         return;
       }
       for(const c of items){

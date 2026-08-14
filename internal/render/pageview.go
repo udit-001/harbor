@@ -393,17 +393,17 @@ font:600 13px var(--font);cursor:pointer}
 .cp-pins-clear:hover{color:var(--strong);background:var(--surface2)}
 .cp-pins-post{background:var(--acc);border-color:var(--acc);color:#fff}
 .cp-pins-post:hover{filter:brightness(.95)}
-.cp-empty{font-size:12.5px;color:var(--muted);padding:26px 14px;text-align:center;line-height:1.55}
-.cp-empty-title{font-size:13.5px;font-weight:600;color:var(--strong);margin-bottom:5px}
-.cp-empty-note{margin:0 auto 12px;max-width:260px}
+.cp-empty{text-align:center;padding:34px 18px 32px;margin-top:4px;border:1px dashed var(--border);border-radius:var(--rs);background:var(--surface);color:var(--muted);line-height:1.55}
+.cp-empty-title{font-size:14px;font-weight:600;color:var(--strong);margin:0 0 7px}
+.cp-empty-note{margin:0 auto;max-width:248px;font-size:12.5px}
 .cp-empty-note b{color:var(--text)}
-.cp-empty-action{border:1px solid var(--border);background:var(--surface);color:var(--acc);border-radius:var(--rs);padding:6px 12px;font:600 12px var(--font);cursor:pointer;transition:background .1s,color .1s,border-color .1s}
+.cp-empty-action{border:1px solid var(--border);background:var(--surface);color:var(--acc);border-radius:var(--rs);padding:7px 14px;font:600 12px var(--font);cursor:pointer;transition:background .1s,color .1s,border-color .1s}
 .cp-empty-action:hover{background:var(--acc-soft);border-color:var(--acc)}
 .cp-skeleton{border:1px solid var(--hair);border-radius:var(--rs);padding:13px 15px;background:var(--surface2);display:flex;flex-direction:column;gap:9px}
 .cp-skeleton span{display:block;height:9px;border-radius:4px;background:var(--hair)}
 .cp-skeleton span:nth-child(2){width:72%}
 .cp-skeleton span:nth-child(3){width:45%}
-.cp-empty-err .cp-empty-action{margin-top:2px}
+.cp-empty-err .cp-empty-note{margin-bottom:12px}
 /* ── What-changed walkthrough ──
    Styled to match the shell's flat Nord surfaces (comment panel + header):
    --surface body, --border edge, --hair dividers, --rs radius, subtle shadow,
