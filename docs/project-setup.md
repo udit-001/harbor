@@ -71,6 +71,7 @@ internal/
 │   ├── change.go         # data-cf-change walkthrough records
 │   ├── asset.go / asset_registry.go # assets/ management
 │   ├── nav.go            # navigate the dashboard via /api/notify
+│   ├── notify.go / exec.go  # server notifications / commands from the CLI
 │   ├── start.go / dev.go / stop.go / daemon_*.go  # server lifecycle daemon
 │   ├── config.go / init.go / migrate.go
 │   ├── build.go / tailwind*.go / upgrade.go / version.go
@@ -84,6 +85,7 @@ internal/
 │   ├── workspace_store.go # Scoped store bound to one workspace (assets)
 │   ├── assets.go        # assets/ management + path guard
 │   ├── layout.go        # on-disk workspace layout + SafeJoin guard
+│   ├── fileutil.go      # file copy/atomic-write helpers for the managed store
 │   ├── fts_query.go     # Centralised FTS5 query builder
 │   ├── seed.go / seed/  # Embedded seed assets (copy-code.js, fonts)
 │   ├── scan.go          # Generic row scanner (deduplicated loop)
@@ -96,7 +98,9 @@ internal/
 ├── render/         # HTML output — two families:
 │   ├── library.go / pageview.go   # self-contained strings (inline CSS+JS), the primary surface
 │   ├── frame.templ / views.templ / iframe_not_found.templ  # workspace/doc pages (Tailwind CSS)
-│   └── icons.go, models.go, livesync.go, quiz_scripts.go
+│   └── icons.go, models.go, pageview_scripts.go
+│       # pageview_scripts.go embeds the JS assets: harbor-livesync.js,
+│       # pageview-shell.js, pageview-tour.js, pageview-annotations.js, quiz-attempt.js
 ├── server/         # HTTP server — thin handlers, no HTML strings
 │   ├── mux.go       # Route handlers + JSON API (NewMux — testable seam)
 │   ├── server.go    # Server lifecycle (start/stop/PID)
@@ -127,3 +131,21 @@ internal/
   `--body-file` from a real file
 - **Embedded assets** — CSS, favicons, fonts, and seed assets are
   `//go:embed`'d into the binary; no external file dependencies at runtime
+
+## Testing
+
+```bash
+make test   # go test ./... (real SQLite temp files, no mocks)
+```
+
+## Releases
+
+Tag a version to trigger the GitHub release workflow:
+
+```bash
+git tag v0.1.0 && git push --tags
+```
+
+GoReleaser (`.goreleaser.yaml`) cross-compiles linux/darwin/windows ×
+amd64/arm64 and produces archives, a checksums file (cosign-signed keyless),
+and Linux packages.
