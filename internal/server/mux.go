@@ -405,46 +405,26 @@ func pageFilterFromQuery(r *http.Request) db.PageFilter {
 	}
 }
 
-// libraryRows builds the render rows for a filter. q (when set) goes through the
-// page FTS; otherwise it's a plain filtered list.
+// libraryRows builds the render rows for a filter. One query via
+// ListPageRows (workspace name, tags, and open-feedback counts are all folded
+// into it — no per-page follow-ups). q (when set) goes through the page FTS;
+// otherwise it's a plain filtered list.
 func libraryRows(store *db.Store, filter db.PageFilter, q string) []render.PageRow {
-	rows := make([]render.PageRow, 0, 16)
-	var (
-		pages []db.Page
-		err   error
-	)
-	if q != "" {
-		pages, err = store.SearchPages(q, filter)
-	} else {
-		pages, err = store.ListPages(filter)
-	}
+	list, err := store.ListPageRows(filter, q)
 	if err != nil {
-		return rows
+		return []render.PageRow{}
 	}
-	openBySlug := map[string]int{}
-	if m, merr := store.OpenCommentCounts(); merr == nil {
-		openBySlug = m
-	}
-	for _, p := range pages {
-		wsName := ""
-		if ws, werr := store.GetWorkspace(p.WorkspaceID); werr == nil {
-			wsName = ws.Name
-		}
-		tags := []string{}
-		if ts, terr := store.TagsForPage(p.Slug); terr == nil {
-			for _, t := range ts {
-				tags = append(tags, t.Name)
-			}
-		}
+	rows := make([]render.PageRow, 0, len(list))
+	for _, p := range list {
 		rows = append(rows, render.PageRow{
 			Slug:         p.Slug,
 			Title:        p.Title,
 			Desc:         p.Description,
-			Workspace:    wsName,
+			Workspace:    p.Workspace,
 			Status:       p.Status,
-			Tags:         tags,
+			Tags:         p.TagList(),
 			Updated:      shortDate(p.UpdatedAt),
-			FeedbackOpen: openBySlug[p.Slug],
+			FeedbackOpen: p.FeedbackOpen,
 		})
 	}
 	return rows
@@ -555,32 +535,39 @@ func handlePageView(store *db.Store, dataDir string) http.HandlerFunc {
 		q := r.URL.Query().Get("q")
 		set := libraryRows(store, filter, q) // ordered current set
 		prevURL, nextURL := "", ""
-		for i, row := range set {
-			if row.Slug == page.Slug {
-				if i > 0 {
-					prevURL = "/page/" + set[i-1].Slug + filterQueryString(filter, q)
-				}
-				if i < len(set)-1 {
-					nextURL = "/page/" + set[i+1].Slug + filterQueryString(filter, q)
-				}
-				break
-			}
-		}
-
 		wsName := ""
-		if ws, werr := store.GetWorkspace(page.WorkspaceID); werr == nil {
-			wsName = ws.Name
-		}
 		tags := []string{}
-		if ts, terr := store.TagsForPage(page.Slug); terr == nil {
-			for _, t := range ts {
-				tags = append(tags, t.Name)
+		openFb := 0
+		for i, row := range set {
+			if row.Slug != page.Slug {
+				continue
 			}
+			// The row already carries everything the header needs (workspace,
+			// tags, open feedback) — no follow-up queries for the current page.
+			wsName, tags, openFb = row.Workspace, row.Tags, row.FeedbackOpen
+			if i > 0 {
+				prevURL = "/page/" + set[i-1].Slug + filterQueryString(filter, q)
+			}
+			if i < len(set)-1 {
+				nextURL = "/page/" + set[i+1].Slug + filterQueryString(filter, q)
+			}
+			break
 		}
-
-		openBySlug := map[string]int{}
-		if m, merr := store.OpenCommentCounts(); merr == nil {
-			openBySlug = m
+		if wsName == "" {
+			// Direct visit with a filter that excludes this page (or a dangling
+			// workspace): fall back to direct lookups for the header.
+			if ws, werr := store.GetWorkspace(page.WorkspaceID); werr == nil {
+				wsName = ws.Name
+			}
+			if ts, terr := store.TagsForPage(page.Slug); terr == nil {
+				tags = []string{}
+				for _, t := range ts {
+					tags = append(tags, t.Name)
+				}
+			}
+			if m, merr := store.OpenCommentCounts(); merr == nil {
+				openFb = m[page.Slug]
+			}
 		}
 
 		data := render.PageViewData{
@@ -593,7 +580,7 @@ func handlePageView(store *db.Store, dataDir string) http.HandlerFunc {
 			BackURL:      "/" + filterQueryString(filter, q),
 			PrevURL:      prevURL,
 			NextURL:      nextURL,
-			FeedbackOpen: openBySlug[page.Slug],
+			FeedbackOpen: openFb,
 		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_, _ = w.Write([]byte(render.PageView(data)))

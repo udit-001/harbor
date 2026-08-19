@@ -209,3 +209,120 @@ func TestWorkspaceDescriptionRoundTrip(t *testing.T) {
 		t.Fatalf("created description = %q", created.Description)
 	}
 }
+
+func TestListPageRowsSingleQueryParity(t *testing.T) {
+	s := newTestStore(t)
+	wsA := seedPageWorkspace(t, s, "income")
+	wsB := seedPageWorkspace(t, s, "health")
+
+	for _, tag := range []struct{ name, desc string }{
+		{"finance", "money stuff"},
+		{"zeta", "last tag name"},
+		{"alpha", "first tag name"},
+	} {
+		if _, err := s.CreateTag(tag.name, tag.desc); err != nil {
+			t.Fatalf("create tag: %v", err)
+		}
+	}
+
+	mk := func(ws int64, title, desc, status, body string, tags []string) string {
+		p, err := s.CreatePage(ws, title, desc, "ctx", status, "/o.html", body, tags)
+		if err != nil {
+			t.Fatalf("create page %s: %v", title, err)
+		}
+		return p.Slug
+	}
+	budget := mk(wsA, "Budget", "monthly budget chart", PageStatusPublished, "budget numbers table", []string{"zeta", "finance", "alpha"})
+	trend := mk(wsA, "Trend", "spending trend line", PageStatusDraft, "trend over months", nil)
+	vitals := mk(wsB, "Vitals", "resting heart rate", PageStatusPublished, "bpm readings", []string{"alpha"})
+
+	// Two open + one done comment on budget: FeedbackOpen must be 2.
+	if _, err := s.CreateComment(budget, "", "", "general", "widen the chart"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.CreateComment(budget, "#hdr", "the header", "element", "fix header"); err != nil {
+		t.Fatal(err)
+	}
+	doneC, _ := s.CreateComment(budget, "", "", "general", "already handled")
+	if _, err := s.UpdateCommentStatus(doneC.ID, CommentStatusDone); err != nil {
+		t.Fatal(err)
+	}
+
+	rows, err := s.ListPageRows(PageFilter{}, "")
+	if err != nil {
+		t.Fatalf("ListPageRows: %v", err)
+	}
+	bySlug := map[string]PageListRow{}
+	for _, r := range rows {
+		bySlug[r.Slug] = r
+	}
+	if len(rows) != 3 {
+		t.Fatalf("got %d rows, want 3", len(rows))
+	}
+	b := bySlug[budget]
+	if b.Workspace != "income" {
+		t.Errorf("budget workspace = %q, want income", b.Workspace)
+	}
+	gotTags := b.TagList()
+	wantTags := []string{"alpha", "finance", "zeta"} // name-sorted, matches TagsForPage
+	if len(gotTags) != len(wantTags) {
+		t.Errorf("budget tags = %v, want %v", gotTags, wantTags)
+	} else {
+		for i := range wantTags {
+			if gotTags[i] != wantTags[i] {
+				t.Errorf("budget tags = %v, want %v", gotTags, wantTags)
+				break
+			}
+		}
+	}
+	if b.FeedbackOpen != 2 {
+		t.Errorf("budget FeedbackOpen = %d, want 2 (open only)", b.FeedbackOpen)
+	}
+	if bySlug[trend].Tags != "" || len(bySlug[trend].TagList()) != 0 {
+		t.Errorf("trend tags = %q, want empty (and TagList length 0)", bySlug[trend].Tags)
+	}
+	if bySlug[vitals].Workspace != "health" {
+		t.Errorf("vitals workspace = %q, want health", bySlug[vitals].Workspace)
+	}
+
+	// Filters.
+	st, _ := s.ListPageRows(PageFilter{Status: PageStatusPublished}, "")
+	if len(st) != 2 {
+		t.Errorf("status filter: got %d, want 2", len(st))
+	}
+	wf, _ := s.ListPageRows(PageFilter{WorkspaceSlug: "health"}, "")
+	if len(wf) != 1 || wf[0].Slug != vitals {
+		t.Errorf("workspace filter: got %v, want [%s]", wf, vitals)
+	}
+	tf, _ := s.ListPageRows(PageFilter{TagName: "zeta"}, "")
+	if len(tf) != 1 || tf[0].Slug != budget {
+		t.Errorf("tag filter: got %v, want [%s]", tf, budget)
+	}
+
+	// Search parity with the old SearchPages path: same slug set, plus the
+	// derived fields the list needs.
+	oldPages, err := s.SearchPages("budget", PageFilter{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sr, err := s.ListPageRows(PageFilter{}, "budget")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(sr) != len(oldPages) {
+		t.Fatalf("search: ListPageRows got %d, SearchPages got %d", len(sr), len(oldPages))
+	}
+	if sr[0].Slug != oldPages[0].Slug || sr[0].Workspace != "income" || sr[0].FeedbackOpen != 2 {
+		t.Errorf("search row = %+v", sr[0])
+	}
+
+	// Tag-description search path (LIKE fallback): zeta's description "last
+	// tag name" matches "last" even though no page body contains it.
+	tr, err := s.ListPageRows(PageFilter{}, "last")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(tr) != 1 || tr[0].Slug != budget {
+		t.Errorf("tag-desc search: got %v, want [%s]", tr, budget)
+	}
+}

@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -126,6 +127,100 @@ func (s *Store) ListPages(filter PageFilter) ([]Page, error) {
 	}
 	defer rows.Close()
 	return scanPages(rows)
+}
+
+// ListPageRows returns the library list in ONE query: display columns only
+// (no body_text), workspace name via LEFT JOIN, tag names via a correlated
+// GROUP_CONCAT, and the derived open-feedback count via a correlated COUNT.
+// This replaces the old per-page GetWorkspace + TagsForPage follow-ups
+// (N+1) that made every library render and page-view navigation cost ~2N
+// queries — visibly slow on Windows once the library grows past a few
+// hundred pages.
+//
+// q (when set) searches via the page FTS index plus tag name/description
+// LIKE, mirroring SearchPages. Results are ordered newest-updated first,
+// like ListPages.
+func (s *Store) ListPageRows(filter PageFilter, q string) ([]PageListRow, error) {
+	where := []string{"1=1"}
+	args := []any{CommentStatusOpen}
+
+	if q != "" {
+		fts := buildFTSQuery(q)
+		if fts == "" {
+			return []PageListRow{}, nil
+		}
+		tagLike, likeArgs := ftsTermsLike(q)
+		where = append(where,
+			"(p.id IN (SELECT rowid FROM pages_fts WHERE pages_fts MATCH ?)"+
+				" OR p.id IN (SELECT DISTINCT pt.page_id FROM page_tags pt JOIN tags t ON t.id = pt.tag_id WHERE "+tagLike+"))")
+		args = append(args, fts)
+		args = append(args, likeArgs...)
+	}
+	if filter.Status != "" {
+		where = append(where, "p.status = ?")
+		args = append(args, filter.Status)
+	}
+	if filter.WorkspaceSlug != "" {
+		where = append(where, "p.workspace_id IN (SELECT id FROM workspaces WHERE name = ?)")
+		args = append(args, filter.WorkspaceSlug)
+	}
+	if filter.TagName != "" {
+		where = append(where, "p.id IN (SELECT pt.page_id FROM page_tags pt JOIN tags t ON t.id = pt.tag_id WHERE t.name = ?)")
+		args = append(args, filter.TagName)
+	}
+
+	query := `SELECT p.slug, p.title, p.description, p.status, p.updated_at,
+		COALESCE(w.name, ''),
+		COALESCE((SELECT GROUP_CONCAT(t.name, ',') FROM page_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.page_id = p.id), ''),
+		(SELECT COUNT(*) FROM comments c WHERE c.page_id = p.id AND c.status = ?)
+	FROM pages p
+	LEFT JOIN workspaces w ON w.id = p.workspace_id
+	WHERE ` + strings.Join(where, " AND ") + `
+	ORDER BY p.updated_at DESC`
+
+	rows, err := s.db.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := []PageListRow{}
+	for rows.Next() {
+		var r PageListRow
+		if err := rows.Scan(&r.Slug, &r.Title, &r.Description, &r.Status, &r.UpdatedAt,
+			&r.Workspace, &r.Tags, &r.FeedbackOpen); err != nil {
+			return nil, fmt.Errorf("scan page list row: %w", err)
+		}
+		out = append(out, r)
+	}
+	return out, rows.Err()
+}
+
+// PageListRow is one row of the library list: a page's display fields plus
+// the derived data the list shows (workspace name, tag names, open feedback
+// count) — and crucially NOT body_text, which can be hundreds of KB per page.
+// Fetching these as one query is what keeps library navigation O(1) queries
+// instead of O(pages).
+type PageListRow struct {
+	Slug         string
+	Title        string
+	Description  string
+	Status       string
+	UpdatedAt    string
+	Workspace    string // workspace name; "" only for a dangling workspace_id
+	Tags         string // comma-joined tag names
+	FeedbackOpen int    // derived: open comments on the page
+}
+
+// TagList splits the joined tag names into a name-sorted slice (same order
+// TagsForPage returns), never nil.
+func (r PageListRow) TagList() []string {
+	if r.Tags == "" {
+		return []string{}
+	}
+	tags := strings.Split(r.Tags, ",")
+	sort.Strings(tags)
+	return tags
 }
 
 // UpdatePage mutates a page in place. Pointers are optional: nil means
