@@ -15,7 +15,7 @@ func seedCommentsForCLI(t *testing.T, s *db.Store) {
 	if err != nil {
 		t.Fatalf("seed workspace: %v", err)
 	}
-	if _, err := s.CreatePage(ws.ID, "Monthly Totals", "d", "c", "", "", "body", nil); err != nil {
+	if _, err := s.CreatePage(ws.ID, "Monthly Totals", "d", "c", "", "", "", "body", nil); err != nil {
 		t.Fatalf("seed page: %v", err)
 	}
 	if _, err := s.CreateComment("monthly-totals", "#chart", "the chart", db.CommentTypeSelection, "widen it"); err != nil {

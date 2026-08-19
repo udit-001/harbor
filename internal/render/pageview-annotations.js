@@ -20,6 +20,11 @@
   const chips=document.querySelectorAll('.cp-chip');
   const titleEl=document.getElementById('commentPanelTitle');
   const REDUCED=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // Artifact formats without a DOM (pdf, image, svg, excalidraw, markdown,
+  // text) can only anchor whole-page comments: there is no element or text
+  // selection inside the iframe to path against. HTML keeps all three kinds.
+  const DOM_FORMAT=(window.__harbor&&window.__harbor.format)==='html';
+  if(!DOM_FORMAT){ typeSel.hidden=true; typeSel.value='general'; }
   // Transient status toast (bottom of the shell). Live region so assistive tech hears it.
   function toast(msg){
     var t=document.createElement('div'); t.className='pv-toast'; t.setAttribute('role','status'); t.textContent=msg;

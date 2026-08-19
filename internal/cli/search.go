@@ -113,7 +113,7 @@ func runRebuildIndex(cmd *cobra.Command, s *db.Store) error {
 			continue
 		}
 		bt := extract.FromHTML(string(data))
-		if _, err := s.UpdatePage(p.Slug, nil, nil, nil, nil, nil, &bt, nil); err != nil {
+		if _, err := s.UpdatePage(p.Slug, nil, nil, nil, nil, nil, nil, &bt, nil); err != nil {
 			r.Reason = "update failed"
 			skipped++
 			results = append(results, r)

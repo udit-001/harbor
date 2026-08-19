@@ -33,11 +33,27 @@ type Page struct {
 	Description string `db:"description" json:"description"`
 	Context     string `db:"context" json:"context"`
 	Status      string `db:"status" json:"status"`
+	Format      string `db:"format" json:"format"`
 	OriginPath  string `db:"origin_path" json:"originPath"`
 	BodyText    string `db:"body_text" json:"bodyText"`
 	CreatedAt   string `db:"created_at" json:"createdAt"`
 	UpdatedAt   string `db:"updated_at" json:"updatedAt"`
 }
+
+// Page formats (HARB-59). The stored file is the artifact; format derives its
+// view family: native (serve raw bytes — the browser renders), text-frame
+// (harbor renders a view from the source), app (embedded viewer). Adding a
+// format is a deliberate act: it must map to a family and pick up a content
+// type, FTS extractor, and feedback surface here.
+const (
+	FormatHTML       = "html"
+	FormatMarkdown   = "markdown"
+	FormatPDF        = "pdf"
+	FormatText       = "text"
+	FormatSVG        = "svg"
+	FormatImage      = "image"
+	FormatExcalidraw = "excalidraw"
+)
 
 // Tag is a first-class grouping object shared by pages: a name plus a
 // description (the description is the semantic payload — a bare name adds no

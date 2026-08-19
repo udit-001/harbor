@@ -16,6 +16,10 @@
   const headEl = document.getElementById('cfHead');
   const LIST_URL = '/api/pages/' + encodeURIComponent(slug) + '/changes';
   const REDUCED = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // The what-changed tour walks data-cf-change markers in the iframe DOM —
+  // only HTML artifacts carry them. Other formats never show the chip.
+  const DOM_FORMAT = (window.__harbor && window.__harbor.format) === 'html';
+  if (!DOM_FORMAT) { btn.hidden = true; return; }
 
   // Single-mode coordinator (HARB-31): READER | TOUR | COMMENT are mutually
   // exclusive. A shared window.harborModes records the active mode and fires a

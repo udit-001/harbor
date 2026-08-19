@@ -11,13 +11,13 @@ import (
 // Store seam directly; workspace-scoped helpers are not required because a
 // page already carries workspace_id.
 
-const pageColumns = `id, slug, workspace_id, title, description, context, status, origin_path, COALESCE(body_text, ''), created_at, updated_at`
+const pageColumns = `id, slug, workspace_id, title, description, context, status, COALESCE(format, 'html'), origin_path, COALESCE(body_text, ''), created_at, updated_at`
 
 func scanPage(row interface{ Scan(...any) error }) (Page, error) {
 	var p Page
 	err := row.Scan(
 		&p.ID, &p.Slug, &p.WorkspaceID, &p.Title, &p.Description, &p.Context,
-		&p.Status, &p.OriginPath, &p.BodyText, &p.CreatedAt, &p.UpdatedAt,
+		&p.Status, &p.Format, &p.OriginPath, &p.BodyText, &p.CreatedAt, &p.UpdatedAt,
 	)
 	return p, err
 }
@@ -40,6 +40,20 @@ func normalizePageStatus(status string) (string, error) {
 	}
 }
 
+// normalizePageFormat coerces an optional format to a valid value: empty
+// becomes html (the original page kind); anything else must be a known format
+// or it errors — same closed-enum discipline as status.
+func normalizePageFormat(format string) (string, error) {
+	switch format {
+	case "":
+		return FormatHTML, nil
+	case FormatHTML, FormatMarkdown, FormatPDF, FormatText, FormatSVG, FormatImage, FormatExcalidraw:
+		return format, nil
+	default:
+		return "", fmt.Errorf("page format must be one of: html, markdown, pdf, text, svg, image, excalidraw (got %q)", format)
+	}
+}
+
 // PageFilter narrows ListPages. All fields are optional: zero values mean
 // "no filter". TagName filters to pages carrying that tag by name; WorkspaceSlug
 // filters to pages in that workspace by name. Query/FTS filtering lands with
@@ -54,7 +68,7 @@ type PageFilter struct {
 // is required and drives the stable slug (derived once via Slugify). The listed
 // tag names are attached; each must already exist as a Tag (create-first rule).
 // Returns the created page by slug.
-func (s *Store) CreatePage(workspaceID int64, title, description, context, status, originPath, bodyText string, tagNames []string) (Page, error) {
+func (s *Store) CreatePage(workspaceID int64, title, description, context, status, format, originPath, bodyText string, tagNames []string) (Page, error) {
 	slug := Slugify(title)
 	if slug == "" {
 		return Page{}, fmt.Errorf("page title must produce a slug")
@@ -63,11 +77,15 @@ func (s *Store) CreatePage(workspaceID int64, title, description, context, statu
 	if err != nil {
 		return Page{}, err
 	}
+	format, ferr := normalizePageFormat(format)
+	if ferr != nil {
+		return Page{}, ferr
+	}
 
 	res, err := s.db.Exec(
-		`INSERT INTO pages (slug, workspace_id, title, description, context, status, origin_path, body_text)
-		 VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-		slug, workspaceID, title, description, context, status, originPath, bodyText,
+		`INSERT INTO pages (slug, workspace_id, title, description, context, status, format, origin_path, body_text)
+		 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		slug, workspaceID, title, description, context, status, format, originPath, bodyText,
 	)
 	if err != nil {
 		return Page{}, fmt.Errorf("insert page: %w", err)
@@ -169,7 +187,7 @@ func (s *Store) ListPageRows(filter PageFilter, q string) ([]PageListRow, error)
 		args = append(args, filter.TagName)
 	}
 
-	query := `SELECT p.slug, p.title, p.description, p.status, p.updated_at,
+	query := `SELECT p.slug, p.title, p.description, p.status, COALESCE(p.format, 'html'), p.updated_at,
 		COALESCE(w.name, ''),
 		COALESCE((SELECT GROUP_CONCAT(t.name, ',') FROM page_tags pt JOIN tags t ON t.id = pt.tag_id WHERE pt.page_id = p.id), ''),
 		(SELECT COUNT(*) FROM comments c WHERE c.page_id = p.id AND c.status = ?)
@@ -187,7 +205,7 @@ func (s *Store) ListPageRows(filter PageFilter, q string) ([]PageListRow, error)
 	out := []PageListRow{}
 	for rows.Next() {
 		var r PageListRow
-		if err := rows.Scan(&r.Slug, &r.Title, &r.Description, &r.Status, &r.UpdatedAt,
+		if err := rows.Scan(&r.Slug, &r.Title, &r.Description, &r.Status, &r.Format, &r.UpdatedAt,
 			&r.Workspace, &r.Tags, &r.FeedbackOpen); err != nil {
 			return nil, fmt.Errorf("scan page list row: %w", err)
 		}
@@ -206,6 +224,7 @@ type PageListRow struct {
 	Title        string
 	Description  string
 	Status       string
+	Format       string // artifact format: html, markdown, pdf, text, svg, image, excalidraw
 	UpdatedAt    string
 	Workspace    string // workspace name; "" only for a dangling workspace_id
 	Tags         string // comma-joined tag names
@@ -227,7 +246,7 @@ func (r PageListRow) TagList() []string {
 // "unchanged"; status (when non-nil) must be a valid status; tags (when non-nil)
 // replaces the full tag set. The slug never changes (stable find-then-update
 // handle); a changed title does not regenerate it.
-func (s *Store) UpdatePage(slug string, title, description, context, status, originPath, bodyText *string, tags *[]string) (Page, error) {
+func (s *Store) UpdatePage(slug string, title, description, context, status, format, originPath, bodyText *string, tags *[]string) (Page, error) {
 	current, err := s.PageBySlug(slug)
 	if err != nil {
 		return Page{}, err
@@ -252,6 +271,13 @@ func (s *Store) UpdatePage(slug string, title, description, context, status, ori
 			return Page{}, err
 		}
 	}
+	newFormat := current.Format
+	if format != nil {
+		newFormat, err = normalizePageFormat(*format)
+		if err != nil {
+			return Page{}, err
+		}
+	}
 	newOrigin := current.OriginPath
 	if originPath != nil {
 		newOrigin = *originPath
@@ -262,9 +288,9 @@ func (s *Store) UpdatePage(slug string, title, description, context, status, ori
 	}
 
 	_, err = s.db.Exec(
-		`UPDATE pages SET title = ?, description = ?, context = ?, status = ?, origin_path = ?, body_text = ?, updated_at = ?
+		`UPDATE pages SET title = ?, description = ?, context = ?, status = ?, format = ?, origin_path = ?, body_text = ?, updated_at = ?
 		 WHERE id = ?`,
-		newTitle, newDesc, newCtx, newStatus, newOrigin, newBody, nowTimestamp(), current.ID,
+		newTitle, newDesc, newCtx, newStatus, newFormat, newOrigin, newBody, nowTimestamp(), current.ID,
 	)
 	if err != nil {
 		return Page{}, fmt.Errorf("update page %q: %w", slug, err)

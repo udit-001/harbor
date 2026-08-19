@@ -41,6 +41,7 @@ type PageRow struct {
 	Title        string   `json:"title"`
 	Desc         string   `json:"desc"`
 	Workspace    string   `json:"workspace"`
+	Format       string   `json:"format"`
 	Status       string   `json:"status"`
 	Tags         []string `json:"tags"`
 	Updated      string   `json:"updated"`
@@ -200,7 +201,7 @@ func libraryRows(rows []PageRow, hrefQuery string) string {
 			b.WriteString(`<span class="tag">` + e(t) + `</span>`)
 		}
 		b.WriteString(`</div></div>`)
-		b.WriteString(`<div class="right"><span class="updated">` + esc(r.Updated) + `</span><span class="badge ` + statusClass(r.Status) + `">` + esc(r.Status) + `</span></div>`)
+		b.WriteString(`<div class="right"><span class="updated">` + esc(r.Updated) + `</span><span class="badge fmt">` + esc(r.Format) + `</span><span class="badge ` + statusClass(r.Status) + `">` + esc(r.Status) + `</span></div>`)
 		b.WriteString(`</a>`)
 	}
 	return b.String()
@@ -270,6 +271,7 @@ func libraryScript(data LibraryData) string {
       +(r.tags||[]).map(function(t){return '<span class="tag">'+esc(t)+'</span>';}).join('')
       +'</div></div>'
       +'<div class="right"><span class="updated">'+esc(r.updated)+'</span>'
+      +'<span class="badge fmt">'+esc(r.format||'html')+'</span>'
       +'<span class="badge '+statusClass(r.status)+'">'+esc(r.status)+'</span></div></a>';
   }
   function emptyHTML(noPages){
@@ -459,6 +461,7 @@ box-shadow:0 1px 2px rgba(0,0,0,.08);will-change:transform}
 .tag{font-size:11.5px;color:var(--muted);background:var(--surface);border:1px solid var(--hair);border-radius:4px;padding:0 6px}
 .row .right{display:flex;align-items:center;gap:12px;flex:none}
 .badge{font:600 11px var(--font);padding:2px 8px;border-radius:999px}
+.badge.fmt{color:var(--muted);background:var(--surface2);border:1px solid var(--hair)}
 .badge.pub{color:var(--ok);background:var(--ok-soft)}
 .badge.draft{color:var(--warn);background:var(--warn-soft)}
 .badge.arch{color:var(--arch);background:var(--arch-soft)}

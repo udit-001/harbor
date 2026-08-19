@@ -105,6 +105,7 @@ func NewMux(store *db.Store, dataDir string, devCSS bool) *http.ServeMux {
 	mux.HandleFunc("GET /", handleAppShell(store))
 	mux.HandleFunc("GET /page/{slug}", handlePageView(store, dataDir))
 	mux.HandleFunc("GET /page/{slug}/raw", handlePageRaw(store, dataDir))
+	mux.HandleFunc("GET /page/{slug}/view", handlePageViewDoc(store, dataDir))
 	mux.HandleFunc("GET /about", handleAboutPage(store))
 
 	// Live-sync: CLI mutations broadcast through the broker; the dashboard
@@ -421,6 +422,7 @@ func libraryRows(store *db.Store, filter db.PageFilter, q string) []render.PageR
 			Title:        p.Title,
 			Desc:         p.Description,
 			Workspace:    p.Workspace,
+			Format:       p.Format,
 			Status:       p.Status,
 			Tags:         p.TagList(),
 			Updated:      shortDate(p.UpdatedAt),
@@ -479,15 +481,43 @@ func filterQueryString(filter db.PageFilter, q string) string {
 	return "?" + strings.Join(parts, "&")
 }
 
-// managedPagePath resolves the managed HTML file for a page under the given
-// data dir. Workspace names and slugs are slugified/stable, so the path is
+// managedArtifactPath resolves the managed file for a page under the given
+// data dir. The stored filename is <slug>.<format> — the file IS the artifact.
+// Workspace names and slugs are slugified/stable, so the path is
 // deterministic and safe.
-func managedPagePath(dataDir, workspaceName, slug string) string {
-	return filepath.Join(dataDir, "store", workspaceName, slug+".html")
+func managedArtifactPath(dataDir, workspaceName, slug, format string) string {
+	return filepath.Join(dataDir, "store", workspaceName, slug+"."+format)
 }
 
-// handlePageRaw serves a page's HTML byte-for-byte, as the agent wrote it. This
-// is both the iframe src and the pop-out target — no restyle, no injection, no
+// formatContentTypes maps each page format to the content type its raw bytes
+// are served as. Only native-family formats reach the raw endpoint; the view
+// endpoint renders text-frame formats from these same bytes.
+func formatContentType(format string, data []byte) string {
+	switch format {
+	case db.FormatPDF:
+		return "application/pdf"
+	case db.FormatSVG:
+		return "image/svg+xml"
+	case db.FormatImage:
+		ct := http.DetectContentType(data) // png/jpeg/gif/webp/bmp
+		if !strings.HasPrefix(ct, "image/") {
+			return "application/octet-stream"
+		}
+		return ct
+	case db.FormatMarkdown:
+		return "text/markdown; charset=utf-8"
+	case db.FormatText:
+		return "text/plain; charset=utf-8"
+	case db.FormatExcalidraw:
+		return "application/json"
+	default:
+		return "text/html; charset=utf-8"
+	}
+}
+
+// handlePageRaw serves a page's file byte-for-byte, as the agent wrote it:
+// native formats (html/pdf/svg/image) are the iframe src and pop-out target;
+// markdown/text bytes feed the view endpoint. No restyle, no injection, no
 // theme toggle. 404 when the page or its managed file is missing.
 func handlePageRaw(store *db.Store, dataDir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -500,17 +530,39 @@ func handlePageRaw(store *db.Store, dataDir string) http.HandlerFunc {
 		if ws, werr := store.GetWorkspace(page.WorkspaceID); werr == nil {
 			wsName = ws.Name
 		}
-		data, err := os.ReadFile(managedPagePath(dataDir, wsName, page.Slug))
+		data, err := os.ReadFile(managedArtifactPath(dataDir, wsName, page.Slug, page.Format))
 		if err != nil {
 			writeRawNotFound(w)
 			return
 		}
-		ct := http.DetectContentType(data)
-		if !strings.HasPrefix(ct, "text/html") {
-			ct = "text/html; charset=utf-8"
-		}
-		w.Header().Set("Content-Type", ct)
+		w.Header().Set("Content-Type", formatContentType(page.Format, data))
 		_, _ = w.Write(data)
+	}
+}
+
+// handlePageViewDoc renders a text-frame page (markdown, text) into an
+// HTML view the pageview iframe can host: markdown goes through the goldmark
+// renderer, text wraps in a styled <pre>. The stored file is never touched —
+// the view is derived on read, raw bytes remain at /raw (pop-out shows them).
+// Native formats don't route here; the iframe points at /raw directly.
+func handlePageViewDoc(store *db.Store, dataDir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		page, err := store.PageBySlug(r.PathValue("slug"))
+		if err != nil {
+			writeRawNotFound(w)
+			return
+		}
+		wsName := ""
+		if ws, werr := store.GetWorkspace(page.WorkspaceID); werr == nil {
+			wsName = ws.Name
+		}
+		data, err := os.ReadFile(managedArtifactPath(dataDir, wsName, page.Slug, page.Format))
+		if err != nil {
+			writeRawNotFound(w)
+			return
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		_, _ = w.Write([]byte(render.TextFrameView(render.PageMeta{Slug: page.Slug, Title: page.Title, Format: page.Format}, string(data))))
 	}
 }
 
@@ -570,12 +622,21 @@ func handlePageView(store *db.Store, dataDir string) http.HandlerFunc {
 			}
 		}
 
+		// The iframe src follows the view family: native formats (html/pdf/svg/
+		// image) serve their raw bytes; text-frame formats (markdown/text) get
+		// the derived view. Pop-out always targets the raw bytes.
+		iframeURL := "/page/" + page.Slug + "/raw"
+		if page.Format == db.FormatMarkdown || page.Format == db.FormatText {
+			iframeURL = "/page/" + page.Slug + "/view"
+		}
 		data := render.PageViewData{
 			Slug:         page.Slug,
 			Title:        page.Title,
 			Status:       page.Status,
+			Format:       page.Format,
 			Workspace:    wsName,
 			Tags:         tags,
+			IframeURL:    iframeURL,
 			RawURL:       "/page/" + page.Slug + "/raw",
 			BackURL:      "/" + filterQueryString(filter, q),
 			PrevURL:      prevURL,

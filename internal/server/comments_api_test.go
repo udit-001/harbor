@@ -14,7 +14,7 @@ import (
 func seedCommentPage(t *testing.T, env *testEnv) string {
 	t.Helper()
 	wsID := env.workspaceID(t)
-	if _, err := env.store.CreatePage(wsID, "Revenue Deep Dive", "quarterly", "board", "", "", "body", nil); err != nil {
+	if _, err := env.store.CreatePage(wsID, "Revenue Deep Dive", "quarterly", "board", "", "", "", "body", nil); err != nil {
 		t.Fatalf("create page: %v", err)
 	}
 	return "revenue-deep-dive"

@@ -18,20 +18,23 @@ func managedStoreDir(workspaceName string) string {
 	return filepath.Join(resolveDataDir(), "store", workspaceName)
 }
 
-func managedPagePath(workspaceName, slug string) string {
-	return filepath.Join(managedStoreDir(workspaceName), slug+".html")
+// managedPagePath resolves the managed artifact file for a page. The stored
+// filename is <slug>.<format> — the file IS the artifact; callers pass the
+// full name (slug+"."+format). No extension is appended here.
+func managedPagePath(workspaceName, name string) string {
+	return filepath.Join(managedStoreDir(workspaceName), name)
 }
 
 // stageManagedPage writes page HTML to a temp file beside the managed page
 // path, ready to be renamed into place by commitManagedPage. Staging happens
 // before the DB commit and the rename after, so a failed update can never
 // leave the served file ahead of the index. Returns the temp path.
-func stageManagedPage(workspace, slug string, data []byte) (string, error) {
+func stageManagedPage(workspace, name string, data []byte) (string, error) {
 	dir := managedStoreDir(workspace)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", formatError("failed to create managed store directory", err)
 	}
-	tmp, err := os.CreateTemp(dir, slug+"-*.tmp")
+	tmp, err := os.CreateTemp(dir, name+"-*.tmp")
 	if err != nil {
 		return "", formatError("failed to stage page content", err)
 	}
@@ -121,20 +124,26 @@ Examples:
 			return fmt.Errorf("page title must produce a slug (got %q)", title)
 		}
 
+		formatFlag, _ := cmd.Flags().GetString("format")
+		format := extract.ArtifactFormat(source, formatFlag)
+		if !extract.ValidArtifactFormat(format) {
+			return fmt.Errorf("cannot determine format of %q\n  Supported: html, markdown, pdf, text, svg, image, excalidraw\n  Or pass --format explicitly", source)
+		}
+
 		data, err := os.ReadFile(source)
 		if err != nil {
 			return formatError("failed to read source file", err)
 		}
 
-		staged, serr := stageManagedPage(workspaceName, slug, data)
+		staged, serr := stageManagedPage(workspaceName, slug+"."+format, data)
 		if serr != nil {
 			return serr
 		}
 		defer os.Remove(staged)
-		if err := commitManagedPage(workspaceName, slug, staged); err != nil {
+		if err := commitManagedPage(workspaceName, slug+"."+format, staged); err != nil {
 			return err
 		}
-		managedPath := managedPagePath(workspaceName, slug)
+		managedPath := managedPagePath(workspaceName, slug+"."+format)
 
 		description, _ := cmd.Flags().GetString("description")
 		context, _ := cmd.Flags().GetString("context")
@@ -143,7 +152,7 @@ Examples:
 			tags, _ = cmd.Flags().GetStringArray("tag")
 		}
 
-		page, err := s.CreatePage(ws.ID, title, description, context, "", source, extract.FromHTML(string(data)), tags)
+		page, err := s.CreatePage(ws.ID, title, description, context, "", format, source, extract.ArtifactBodyText(source, format, data), tags)
 		if err != nil {
 			return formatError("failed to create page", err)
 		}
@@ -307,23 +316,27 @@ Examples:
 			if strings.TrimSpace(string(data)) == "" {
 				return fmt.Errorf("--file %q is empty or blank — refusing to blank the page", filePath)
 			}
+			// The --file replacement must match the page's format: the stored
+			// filename is <slug>.<format>. Stage under the same name so the
+			// commit lands on the file the server serves for this format.
+			name := slug + "." + page.Format
 			var serr error
-			staged, serr = stageManagedPage(ws.Name, slug, data)
+			staged, serr = stageManagedPage(ws.Name, name, data)
 			if serr != nil {
 				return serr
 			}
 			defer os.Remove(staged)
-			bt := extract.FromHTML(string(data))
+			bt := extract.ArtifactBodyText(filePath, page.Format, data)
 			bodyText = &bt
 		}
 
-		updated, err := s.UpdatePage(slug, title, description, context, status, nil, bodyText, tags)
+		updated, err := s.UpdatePage(slug, title, description, context, status, nil, nil, bodyText, tags)
 		if err != nil {
 			return formatError("failed to update page", err)
 		}
 
 		if staged != "" {
-			if err := commitManagedPage(ws.Name, slug, staged); err != nil {
+			if err := commitManagedPage(ws.Name, slug+"."+page.Format, staged); err != nil {
 				return err
 			}
 		}
@@ -363,7 +376,7 @@ Examples:
 		if err := s.DeletePage(slug); err != nil {
 			return formatError("failed to delete page", err)
 		}
-		_ = os.Remove(managedPagePath(ws.Name, slug)) // best-effort file cleanup
+		_ = os.Remove(managedPagePath(ws.Name, slug+"."+page.Format)) // best-effort file cleanup
 		notifyPage(ws.Name, slug)
 
 		if jsonEnabled(cmd) {
@@ -385,6 +398,7 @@ func init() {
 	pageCmd.AddCommand(pageUpdateCmd)
 	pageCmd.AddCommand(pageDeleteCmd)
 	pageAddCmd.Flags().String("workspace", "", "Workspace name (required)")
+	pageAddCmd.Flags().String("format", "", "Artifact format override: html, markdown, pdf, text, svg, image, excalidraw (default: inferred from the source file)")
 	pageAddCmd.Flags().String("title", "", "Page title (default: the source filename)")
 	pageAddCmd.Flags().String("description", "", "What the page shows (reader summary)")
 	pageAddCmd.Flags().String("context", "", "Where it came from / why it exists (provenance)")
@@ -433,6 +447,7 @@ func pageMap(p db.Page, workspace string, tags []db.Tag) map[string]any {
 		"slug":        p.Slug,
 		"title":       p.Title,
 		"workspace":   workspace,
+		"format":      p.Format,
 		"status":      p.Status,
 		"tags":        tagNames(tags),
 		"description": p.Description,
@@ -463,13 +478,14 @@ func printPagesTable(s *db.Store, pages []db.Page) error {
 			p.Slug,
 			strings.ReplaceAll(p.Title, "\n", " "),
 			ws.Name,
+			p.Format,
 			p.Status,
 			"[" + strings.Join(tagNames(tags), ", ") + "]",
 			formatDateShort(p.UpdatedAt),
 		})
 	}
 	fmt.Println()
-	fmt.Print(formatTable([]string{"SLUG", "TITLE", "WORKSPACE", "STATUS", "TAGS", "UPDATED"}, rows))
+	fmt.Print(formatTable([]string{"SLUG", "TITLE", "WORKSPACE", "FORMAT", "STATUS", "TAGS", "UPDATED"}, rows))
 	fmt.Println()
 	return nil
 }
@@ -478,7 +494,7 @@ func printPageDetail(s *db.Store, page db.Page, tags []db.Tag) {
 	ws, _ := s.GetWorkspace(page.WorkspaceID)
 	names := tagNames(tags)
 	fmt.Println()
-	fmt.Printf("  %s  [%s]  (%s)\n", page.Title, page.Status, ws.Name)
+	fmt.Printf("  %s  [%s]  (%s)  [%s]\n", page.Title, page.Status, ws.Name, page.Format)
 	if len(names) > 0 {
 		fmt.Printf("  tags: %s\n", strings.Join(names, ", "))
 	}

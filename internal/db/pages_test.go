@@ -24,7 +24,7 @@ func TestPageCreateGetListUpdateDelete(t *testing.T) {
 	}
 
 	created, err := s.CreatePage(wsID, "Monthly Totals", "monthly totals chart",
-		"built from /api/reports; prototype v2", "", "/origin/report.html", "monthly report body", []string{"finance"})
+		"built from /api/reports; prototype v2", "", "", "/origin/report.html", "monthly report body", []string{"finance"})
 	if err != nil {
 		t.Fatalf("create page: %v", err)
 	}
@@ -88,7 +88,7 @@ func TestPageCreateGetListUpdateDelete(t *testing.T) {
 	// Update: rename + status; slug must stay stable.
 	published := PageStatusPublished
 	foo := "foo"
-	updated, err := s.UpdatePage("monthly-totals", &foo, nil, nil, &published, nil, nil, nil)
+	updated, err := s.UpdatePage("monthly-totals", &foo, nil, nil, &published, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("update page: %v", err)
 	}
@@ -106,7 +106,7 @@ func TestPageCreateGetListUpdateDelete(t *testing.T) {
 	if _, err := s.CreateTag("chart", "charts"); err != nil {
 		t.Fatalf("create tag chart: %v", err)
 	}
-	if _, err := s.UpdatePage("monthly-totals", nil, nil, nil, nil, nil, nil, &[]string{"chart"}); err != nil {
+	if _, err := s.UpdatePage("monthly-totals", nil, nil, nil, nil, nil, nil, nil, &[]string{"chart"}); err != nil {
 		t.Fatalf("replace tags: %v", err)
 	}
 	tags, _ = s.TagsForPage("monthly-totals")
@@ -126,16 +126,16 @@ func TestPageCreateValidations(t *testing.T) {
 	s := newTestStore(t)
 	wsID := seedPageWorkspace(t, s, "work")
 
-	if _, err := s.CreatePage(wsID, "", "d", "c", "", "", "", nil); err == nil {
+	if _, err := s.CreatePage(wsID, "", "d", "c", "", "", "", "", nil); err == nil {
 		t.Fatalf("expected error for empty title")
 	}
 
-	if _, err := s.CreatePage(wsID, "ok", "d", "c", "in-progress", "", "", nil); err == nil {
+	if _, err := s.CreatePage(wsID, "ok", "d", "c", "in-progress", "", "", "", nil); err == nil {
 		t.Fatalf("expected error for invalid status")
 	}
 
 	// Create-first tag rule: attaching a tag that doesn't exist must fail.
-	if _, err := s.CreatePage(wsID, "p", "d", "c", "", "", "", []string{"nope"}); err == nil {
+	if _, err := s.CreatePage(wsID, "p", "d", "c", "", "", "", "", []string{"nope"}); err == nil {
 		t.Fatalf("expected error for missing tag")
 	}
 }
@@ -144,10 +144,10 @@ func TestPageReindexHelpers(t *testing.T) {
 	s := newTestStore(t)
 	wsID := seedPageWorkspace(t, s, "ws")
 
-	if _, err := s.CreatePage(wsID, "with-body", "d", "c", "", "", "hello body", nil); err != nil {
+	if _, err := s.CreatePage(wsID, "with-body", "d", "c", "", "", "", "hello body", nil); err != nil {
 		t.Fatalf("create with-body: %v", err)
 	}
-	if _, err := s.CreatePage(wsID, "empty-body", "d", "c", "", "", "", nil); err != nil {
+	if _, err := s.CreatePage(wsID, "empty-body", "d", "c", "", "", "", "", nil); err != nil {
 		t.Fatalf("create empty-body: %v", err)
 	}
 
@@ -175,7 +175,7 @@ func TestPageWorkspaceCascadeDelete(t *testing.T) {
 	s := newTestStore(t)
 	wsID := seedPageWorkspace(t, s, "work-cascade")
 
-	if _, err := s.CreatePage(wsID, "page-a", "d", "c", "", "", "", nil); err != nil {
+	if _, err := s.CreatePage(wsID, "page-a", "d", "c", "", "", "", "", nil); err != nil {
 		t.Fatalf("create page: %v", err)
 	}
 	// Deleting the workspace cascades to its pages.
@@ -226,7 +226,7 @@ func TestListPageRowsSingleQueryParity(t *testing.T) {
 	}
 
 	mk := func(ws int64, title, desc, status, body string, tags []string) string {
-		p, err := s.CreatePage(ws, title, desc, "ctx", status, "/o.html", body, tags)
+		p, err := s.CreatePage(ws, title, desc, "ctx", status, "", "/o.html", body, tags)
 		if err != nil {
 			t.Fatalf("create page %s: %v", title, err)
 		}

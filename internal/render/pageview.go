@@ -13,9 +13,11 @@ type PageViewData struct {
 	Slug         string
 	Title        string
 	Status       string
+	Format       string // artifact format; drives which chrome is meaningful
 	Workspace    string
 	Tags         []string
-	RawURL       string // /page/<slug>/raw — the iframe src and pop-out target
+	IframeURL    string // iframe src: /raw for native formats, /view for text-frame
+	RawURL       string // /page/<slug>/raw — the pop-out target (raw bytes)
 	BackURL      string // library URL preserving the current filter
 	PrevURL      string // "" when no previous page in the current set
 	NextURL      string // "" when no next page in the current set
@@ -36,20 +38,21 @@ func PageView(d PageViewData) string {
 	b.WriteString(pageViewCSS())
 	b.WriteString(`</head><body data-slug="` + e(d.Slug) + `">`)
 	b.WriteString(pageViewHeader(d))
-	b.WriteString(`<main class="wrap"><iframe id="frame" src="` + e(d.RawURL) + `" title="` + esc(d.Title) + `"></iframe></main>`)
+	b.WriteString(`<main class="wrap"><iframe id="frame" src="` + e(d.IframeURL) + `" title="` + esc(d.Title) + `"></iframe></main>`)
 	b.WriteString(commentPanelMarkup())
 	b.WriteString(changeTourMarkup())
 	// Per-page data seam for the extracted JS files (HARB-36). Go writes the
 	// dynamic context; the //go:embed'd pageview js reads window.__harbor.
 	if ctx, cerr := json.Marshal(struct {
 		Slug      string `json:"slug"`
+		Format    string `json:"format"`
 		Workspace string `json:"workspace"`
 		Live      struct {
 			Topic string `json:"topic"`
 			Mode  string `json:"mode"`
 			Slug  string `json:"slug"`
 		} `json:"live"`
-	}{Slug: d.Slug, Workspace: d.Workspace, Live: struct {
+	}{Slug: d.Slug, Format: d.Format, Workspace: d.Workspace, Live: struct {
 		Topic string `json:"topic"`
 		Mode  string `json:"mode"`
 		Slug  string `json:"slug"`

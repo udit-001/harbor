@@ -176,7 +176,7 @@ func TestLibraryListsSeededPages(t *testing.T) {
 	if _, err := env.store.CreateTag("finance", "money"); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := env.store.CreatePage(wsID, "Revenue Deep Dive", "quarterly analysis", "board", "",
+	if _, err := env.store.CreatePage(wsID, "Revenue Deep Dive", "quarterly analysis", "board", "", "",
 		"", "revenue hero body", []string{"finance"}); err != nil {
 		t.Fatalf("create page: %v", err)
 	}
@@ -220,7 +220,7 @@ func TestPageViewAndRaw(t *testing.T) {
 	wsID := env.workspaceID(t)
 
 	const html = `<!doctype html><html><head><title>deep</title></head><body><h1>Revenue Deep Dive</h1><p>raw hero</p></body></html>`
-	if _, err := env.store.CreatePage(wsID, "Revenue Deep Dive", "quarterly", "board", "", "", "raw hero", nil); err != nil {
+	if _, err := env.store.CreatePage(wsID, "Revenue Deep Dive", "quarterly", "board", "", "", "", "raw hero", nil); err != nil {
 		t.Fatalf("create page: %v", err)
 	}
 	// Managed file byte-for-byte (no injection/restyle): the server serves it as-is.
@@ -257,7 +257,7 @@ func TestPageViewAndRaw(t *testing.T) {
 func TestSearchAPIOverPages(t *testing.T) {
 	env := newTestEnv(t)
 	wsID := env.workspaceID(t)
-	if _, err := env.store.CreatePage(wsID, "Machine Learning Roadmap", "linear algebra first", "career", "", "", "linear algebra body", nil); err != nil {
+	if _, err := env.store.CreatePage(wsID, "Machine Learning Roadmap", "linear algebra first", "career", "", "", "", "linear algebra body", nil); err != nil {
 		t.Fatalf("create page: %v", err)
 	}
 

@@ -7,7 +7,7 @@ import "testing"
 func seedPageForComments(t *testing.T, s *Store, wsName, slug string) string {
 	t.Helper()
 	wsID := seedPageWorkspace(t, s, wsName)
-	page, err := s.CreatePage(wsID, slug, "desc", "ctx", "", "", "body", nil)
+	page, err := s.CreatePage(wsID, slug, "desc", "ctx", "", "", "", "body", nil)
 	if err != nil {
 		t.Fatalf("seed page %s: %v", slug, err)
 	}

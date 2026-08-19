@@ -78,7 +78,7 @@ func TestPageAddImportRoundTrip(t *testing.T) {
 
 	// Managed copy landed in the sandboxed store, and body text was extracted
 	// from it (script content must NOT leak into the FTS body).
-	managed := managedPagePath("ws", "totals-chart")
+	managed := managedPagePath("ws", "totals-chart.html")
 	if _, err := os.Stat(managed); err != nil {
 		t.Fatalf("managed file not written at %s: %v", managed, err)
 	}
@@ -178,7 +178,7 @@ func TestPageUpdateFileReplacesContent(t *testing.T) {
 	_ = runWithStore(t, []string{"page", "add", old, "--workspace", "ws",
 		"--title", "totals chart", "--description", "a chart"}, store)
 
-	managed := managedPagePath("ws", "totals-chart")
+	managed := managedPagePath("ws", "totals-chart.html")
 	data, err := os.ReadFile(managed)
 	if err != nil {
 		t.Fatalf("managed file missing after add: %v", err)
@@ -339,7 +339,7 @@ func TestPageUpdateFileWithStatusCombo(t *testing.T) {
 	}
 
 	// Managed file replaced with new content.
-	managed := managedPagePath("ws", "totals-chart")
+	managed := managedPagePath("ws", "totals-chart.html")
 	data, err := os.ReadFile(managed)
 	if err != nil {
 		t.Fatalf("managed file missing after combo update: %v", err)
