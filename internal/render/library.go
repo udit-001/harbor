@@ -414,7 +414,14 @@ func libraryScript(data LibraryData) string {
   // under harbor_theme so the choice is shared with the harbor frame pages.
   function setTheme(t){ document.documentElement.dataset.theme=t; try{localStorage.setItem('harbor_theme',t);}catch(e){} }
   var themeBtn=document.getElementById('theme-toggle');
-  if(themeBtn) themeBtn.addEventListener('click',function(){ setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark'); });
+  if(themeBtn) themeBtn.addEventListener('click',function(){
+    // Crossfade the palette flip instead of snapping (occasional action, big
+    // visual delta). Class is removed on the next frame after the transition;
+    // prefers-reduced-motion users keep the instant swap (global rule).
+    document.body.classList.add('theme-swap');
+    setTheme(document.documentElement.dataset.theme==='dark'?'light':'dark');
+    setTimeout(function(){ document.body.classList.remove('theme-swap'); },220);
+  });
 
   // Live-sync hook: refetch the full dataset and re-apply the current filters.
   window.__harborReload=function(){ fetch('/api/pages').then(function(r){return r.json();}).then(function(list){ ALL=Array.isArray(list)?list:[]; ready=true; apply(); }).catch(function(){}); };
@@ -530,6 +537,7 @@ font:500 12.5px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--text)}
 border:1px solid var(--border);border-radius:var(--rs);padding:7px 14px;cursor:pointer;transition:color .1s,transform 120ms var(--ease)}
 .clear:hover{color:var(--strong)}
 .clear:active{transform:scale(.97)}
+body.theme-swap, body.theme-swap *{transition:background-color .18s var(--ease),color .18s var(--ease),border-color .18s var(--ease)!important}
 @media(prefers-reduced-motion:reduce){*{transition:none}.list.swap{animation:none}.link:active,.row:active,.status-seg a:active,.theme-toggle:active,.clear:active{transform:none}}
 </style>`
 }

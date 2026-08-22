@@ -264,11 +264,11 @@ background:var(--warn-soft);border-radius:999px;padding:2px 8px;white-space:nowr
 .pv-fb i{width:7px;height:7px;border-radius:999px;background:var(--warn)}
 .tag{font-size:11.5px;color:var(--muted);background:var(--surface);border:1px solid var(--hair);border-radius:4px;padding:0 6px}
 .icon-btn{border:1px solid transparent;background:transparent;color:var(--muted);width:32px;height:32px;border-radius:var(--rs);
-display:grid;place-items:center;transition:color .1s;cursor:pointer}
+display:grid;place-items:center;transition:color .1s,transform 120ms var(--ease);cursor:pointer}
 .icon-btn:hover{color:var(--strong);background:var(--surface2)}
 .icon-btn:disabled,.icon-btn.disabled{opacity:.35}
-.wrap{height:calc(100vh - 52px);transition:height .35s var(--ease),margin-right .3s var(--ease)}
-#frame{width:100%;height:100%;border:0;background:#fff;transition:height .35s var(--ease)}
+.wrap{height:calc(100vh - 52px);transition:height .3s var(--ease),margin-right .3s var(--ease)}
+#frame{width:100%;height:100%;border:0;background:#fff;transition:height .3s var(--ease)}
 /* The comment panel docks rather than overlays the page: opening it compresses
    the content column by the panel width so the page stays fully visible and
    selectable beside it (no hidden right edge). On narrow screens the panel
@@ -387,6 +387,7 @@ font:600 13px var(--font);cursor:pointer}
 .pv-tooltip{position:fixed;z-index:70;padding:4px 10px;background:#2e3440;color:#f8fafc;font:500 12px var(--font);line-height:1.4;white-space:nowrap;border-radius:4px;pointer-events:none;opacity:0;transform:translateY(2px);transition:opacity .1s var(--ease),transform .1s var(--ease)}
 .pv-tooltip.show{opacity:1;transform:translateY(0)}
 .pv-tooltip-arrow{position:fixed;z-index:70;border:4px solid transparent;border-bottom-color:#2e3440;pointer-events:none;opacity:0;transition:opacity .1s var(--ease)}
+@media(prefers-reduced-motion:reduce){.pv .icon-btn:active,.comment-panel .cp-act:active,.comment-panel .cp-chip:active,.comment-panel .cp-newbtn:active,.comment-panel .cp-clear:active,.comment-panel .cp-pill:active,.comment-panel #cpSubmit:active,.cf-btn:active,.cf-card .cf-pill:active,.cp-pins-clear:active,.cp-pins-post:active{transform:none}}
 .pv-tooltip-arrow.show{opacity:1}
 .pv-toast{position:fixed;left:16px;bottom:56px;z-index:90;max-width:min(420px,calc(100vw - 32px));background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:var(--rs);padding:9px 13px;font:500 12.5px var(--font);line-height:1.4;box-shadow:0 2px 10px rgba(46,52,64,.16);opacity:0;transform:translateY(4px);transition:opacity .14s var(--ease),transform .14s var(--ease)}
 .pv-toast.show{opacity:1;transform:translateY(0)}
@@ -457,6 +458,16 @@ transition:background-color .1s,color .1s,border-color .1s,transform 120ms cubic
 .cf-pill:focus-visible,.cf-close:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
 @media(prefers-reduced-motion:reduce){.cf-btn{transition:none}.cf-card{animation:none;transition:none}.cf-card.cf-exit{animation:none}.cf-pill{transition:background-color .1s,color .1s,border-color .1s}.cf-pill:active{transform:none}}
 [data-theme="dark"] .cf-btn{box-shadow:0 2px 8px rgba(0,0,0,.32),inset 0 1px 0 rgba(236,239,244,.06)}
+/* Press feedback — match the library's physicality (library.go .link:active):
+   every clickable compresses slightly. Values are the repo's shared ones. */
+.pv .icon-btn:active,.comment-panel .cp-act:active,.comment-panel .cp-chip:active,
+.comment-panel .cp-newbtn:active,.comment-panel .cp-clear:active,
+.comment-panel .cp-pill:active,.comment-panel #cpSubmit:active,
+.cf-btn:active,.cf-card .cf-pill:active,.cp-pins-clear:active,.cp-pins-post:active{transform:scale(.97)}
+.pv .icon-btn,.comment-panel .cp-act,.comment-panel .cp-chip,.comment-panel .cp-newbtn,
+.comment-panel .cp-clear,.comment-panel .cp-pill,.cf-btn,.cf-card .cf-pill,
+.cp-pins-clear,.cp-pins-post{transition:color .1s,background-color .1s,border-color .1s,transform 120ms var(--ease)}
+
 @media(prefers-reduced-motion:reduce){.comment-panel{transition:opacity .18s ease;transform:none}
 .comment-panel.open{transform:none}
 .cp-pins{transition:none;transform:none}
