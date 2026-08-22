@@ -304,6 +304,30 @@
   });
   syncCommentSuppression();
 
+  // First-visit hint (onboarding): the comment loop is harbor's differentiator
+  // but nothing on the surface advertises it. One bubble, first page view only;
+  // dismissed by its button, by opening the panel, or by leaving a comment —
+  // whichever comes first. Seen-state in localStorage so it never repeats.
+  try{
+    if(!localStorage.getItem('harbor_comment_hint')){
+      var hint=document.createElement('div');
+      hint.setAttribute('role','note');
+      hint.style.cssText='position:fixed;top:60px;right:16px;z-index:900;max-width:280px;padding:10px 14px;border-radius:10px;'+
+        'background:var(--surface);border:1px solid var(--border);box-shadow:0 6px 18px rgba(46,52,64,.18);'+
+        'color:var(--text);font:400 12.5px/1.55 var(--font);opacity:0;transform:translateY(-4px);transition:opacity .2s ease,transform .2s ease';
+      hint.innerHTML='<b style="color:var(--strong)">Leave feedback for your agent.</b> Select text in the page '+
+        'or use the comments button — it reads the queue and fixes things.'+
+        '<button type="button" id="cpHintOk" style="display:block;margin-top:6px;border:0;background:none;padding:0;cursor:pointer;'+
+        'color:var(--acc);font:600 12px var(--font)">Got it</button>';
+      document.body.appendChild(hint);
+      function dropHint(){ try{ localStorage.setItem('harbor_comment_hint','1'); }catch(_){}
+        hint.style.opacity='0'; setTimeout(function(){ if(hint.parentNode) hint.parentNode.removeChild(hint); },250); }
+      requestAnimationFrame(function(){ hint.style.opacity='1'; hint.style.transform='translateY(0)'; });
+      document.getElementById('cpHintOk').addEventListener('click',dropHint);
+      btn.addEventListener('click',function once(){ btn.removeEventListener('click',once); dropHint(); });
+    }
+  }catch(_){ }
+
   let open=false;
   let doc=null;
   // state: what the comment is anchored to (captured from the iframe).

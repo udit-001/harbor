@@ -1,6 +1,7 @@
 package render
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 )
@@ -49,6 +50,13 @@ type PageRow struct {
 }
 
 func e(tagName string) string { return esc(tagName) }
+
+// escJS renders a Go string as a JS string-literal body (JSON encoding covers
+// quotes and newlines; < escaped so "</script>" can never terminate the tag).
+func escJS(s string) string {
+	b, _ := json.Marshal(s)
+	return strings.ReplaceAll(string(b), "<", "\\u003c")
+}
 
 // Library renders the full Harbor library page (its own shell: topbar + sidebar
 // of workspaces/tags + status segment + hairline list). Self-contained — inline
@@ -222,9 +230,17 @@ func statusClass(s string) string {
 // live-search endpoint so the client can swap the list without reloading.
 func LibraryRows(rows []PageRow, hrefQuery string) string { return libraryRows(rows, hrefQuery) }
 
+// emptyLibraryCopy is the single source of truth for the empty-library state —
+// the server-rendered first paint and the client-side filter swap must never
+// drift apart (they did: the copy still said "HTML pages" after artifacts
+// shipped). Rendered as HTML; the JS side embeds it verbatim via %s.
+const emptyLibraryCopy = `Harbor gathers the artifacts your agent builds — dashboards, reports,
+diagrams, drawings. When the agent makes something worth keeping, it lands here
+automatically for you to browse and review — nothing for you to do.`
+
 func libraryEmpty() string {
 	return `<div class="empty"><h2>No pages yet</h2>
-<p>Harbor gathers the standalone HTML pages your agent builds. When the agent makes one worth keeping, it lands here automatically for you to browse and review — nothing for you to do.</p></div>`
+<p>` + emptyLibraryCopy + `</p></div>`
 }
 
 func libraryScript(data LibraryData) string {
@@ -242,6 +258,7 @@ func libraryScript(data LibraryData) string {
   var ALL=[];
 
   function params(){ return new URLSearchParams(location.search); }
+  var H=window.__harbor||{};
   var state={ q:params().get('q')||'', status:params().get('status')||'', workspace:params().get('workspace')||'', tag:params().get('tag')||'' };
 
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
@@ -276,7 +293,7 @@ func libraryScript(data LibraryData) string {
   }
   function emptyHTML(noPages){
     return noPages
-      ? '<div class="empty"><h2>No pages yet</h2><p>Harbor gathers the standalone HTML pages your agent builds. When the agent makes one worth keeping, it lands here automatically for you to browse and review — nothing for you to do.</p></div>'
+      ? '<div class="empty"><h2>No pages yet</h2><p>'+H.emptyCopy+'</p></div>'
       : '<div class="empty"><h2>No pages match these filters</h2><p>Try a different status, workspace, tag, or query.</p><button type="button" class="clear" id="clear-filters">Clear all filters</button></div>';
   }
 
@@ -381,7 +398,7 @@ func libraryScript(data LibraryData) string {
   window.__harborReload=function(){ fetch('/api/pages').then(function(r){return r.json();}).then(function(list){ ALL=Array.isArray(list)?list:[]; ready=true; apply(); }).catch(function(){}); };
 })();
 </script>` + `
-<script>window.__harbor={live:{topic:'home',mode:'library'}};</script>` + `
+<script>window.__harbor={live:{topic:'home',mode:'library'},emptyCopy:` + escJS(emptyLibraryCopy) + `};</script>` + `
 <script>` + harborLiveSyncJS + `</script>` + `</body></html>`
 }
 
@@ -455,7 +472,7 @@ box-shadow:0 1px 2px rgba(0,0,0,.08);will-change:transform}
 .row:active{transform:scale(.985)}
 .row .grow{min-width:0;flex:1}
 .row .t{display:flex;align-items:center;gap:9px}
-.row .name{font-weight:600;color:var(--strong);font-size:14.5px}
+.row .name{font-weight:600;color:var(--strong);font-size:14.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .desc{color:var(--muted);font-size:13px;margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .row .meta{display:flex;align-items:center;gap:7px;margin-top:5px;flex-wrap:wrap}
 .tag{font-size:11.5px;color:var(--muted);background:var(--surface);border:1px solid var(--hair);border-radius:4px;padding:0 6px}
