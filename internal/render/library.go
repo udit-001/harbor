@@ -111,18 +111,20 @@ func librarySidebar(data LibraryData) string {
 	addLink(allHref, "All pages", data.Total, allActive, iconList(), `data-all="1"`)
 
 	if len(data.Workspaces) > 0 {
-		b.WriteString(`<div class="sec">Workspaces</div>`)
+		b.WriteString(`<div class="secwrap"><div class="sec" data-sec="ws" role="button" tabindex="0" aria-expanded="true">Workspaces` + chevron() + `</div><div class="secitems"><div>`)
 		for _, w := range data.Workspaces {
 			active := data.Filter.Workspace == w.Name
 			addLink("/?workspace="+e(w.Name)+"&status="+e(data.Filter.Status), w.Name, w.Count, active, iconFolder(), `data-ws="`+e(w.Name)+`"`)
 		}
+		b.WriteString(`</div></div></div>`)
 	}
 	if len(data.Tags) > 0 {
-		b.WriteString(`<div class="sec">Tags</div>`)
+		b.WriteString(`<div class="secwrap"><div class="sec" data-sec="tags" role="button" tabindex="0" aria-expanded="true">Tags` + chevron() + `</div><div class="secitems"><div>`)
 		for _, t := range data.Tags {
 			active := data.Filter.Tag == t.Name
 			addLink("/?tag="+e(t.Name)+"&status="+e(data.Filter.Status), t.Name, t.Count, active, iconTag(), `data-tag="`+e(t.Name)+`"`)
 		}
+		b.WriteString(`</div></div></div>`)
 	}
 
 	b.WriteString(`</nav></aside>`)
@@ -213,6 +215,11 @@ func libraryRows(rows []PageRow, hrefQuery string) string {
 		b.WriteString(`</a>`)
 	}
 	return b.String()
+}
+
+// chevron is the collapsible-section affordance; CSS rotates it closed/open.
+func chevron() string {
+	return `<svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9l6 6 6-6"/></svg>`
 }
 
 func statusClass(s string) string {
@@ -345,6 +352,21 @@ func libraryScript(data LibraryData) string {
   }
   if(segEl){ moveThumb(); segEl.classList.add('thumb-ready'); }
   window.addEventListener('resize',function(){ if(segEl) moveThumb(); });
+  // Collapsible sidebar sections (pattern from learn-tool): click label to
+  // fold/unfold; state persists per browser; a section containing the ACTIVE
+  // filter always expands — hiding where you are is worse than any tidiness.
+  document.querySelectorAll('.sec[data-sec]').forEach(function(sec){
+    var wrap=sec.closest('.secwrap');
+    function setCollapsed(v){ wrap.classList.toggle('collapsed',v); sec.setAttribute('aria-expanded',String(!v)); }
+    var saved=null; try{ saved=localStorage.getItem('harbor_sec_'+sec.dataset.sec); }catch(_){}
+    if(saved==='closed' && !wrap.querySelector('.link.active')) setCollapsed(true);
+    function toggle(){
+      setCollapsed(!wrap.classList.contains('collapsed'));
+      try{ localStorage.setItem('harbor_sec_'+sec.dataset.sec, wrap.classList.contains('collapsed')?'closed':'open'); }catch(_){}
+    }
+    sec.addEventListener('click',toggle);
+    sec.addEventListener('keydown',function(ev){ if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); toggle(); } });
+  });
 
   // Status pills (topbar switch) — client-side.
   var pills=document.querySelectorAll('.status-seg a');
@@ -428,7 +450,21 @@ a{text-decoration:none;color:inherit}
 .brand{display:flex;align-items:center;gap:9px;color:var(--strong);font-weight:700;font-size:15px;padding:4px 8px 16px}
 .brand svg{color:var(--acc)}
 .nav{display:flex;flex-direction:column;gap:2px;flex:1;min-height:0;overflow-y:auto}
-.sec{padding:14px 8px 6px;font-size:11px;letter-spacing:.04em;color:var(--muted);font-weight:600}
+.sec{display:flex;align-items:center;gap:5px;padding:14px 8px 6px;font-size:11px;letter-spacing:.04em;color:var(--muted);font-weight:600;cursor:pointer;user-select:none;border-radius:var(--rs);transition:color .1s}
+.sec:hover{color:var(--text)}
+.sec .chev{width:11px;height:11px;flex:none;transition:transform .18s var(--ease);opacity:.8}
+.secwrap:not(.collapsed) .sec .chev{transform:rotate(180deg)}
+/* Collapse via grid-template-rows: animates to auto height with zero JS measuring */
+.secitems{display:grid;grid-template-rows:1fr;transition:grid-template-rows .22s var(--ease)}
+.secwrap.collapsed .secitems{grid-template-rows:0fr}
+.secitems>div{min-height:0;overflow:hidden}
+@media (prefers-reduced-motion:reduce){.secitems,.sec .chev{transition:none!important}}
+/* Custom scrollbars: slim, themed, invisible track */
+.nav{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.nav::-webkit-scrollbar{width:8px}
+.nav::-webkit-scrollbar-track{background:transparent}
+.nav::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.nav::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 .link{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--rs);color:var(--text);font-size:14px;transition:background .1s,color .1s,transform 120ms var(--ease)}
 .link:hover{background:var(--surface2)}
 .link.active{background:var(--acc-soft);color:var(--acc);font-weight:600}
