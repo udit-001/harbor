@@ -392,10 +392,9 @@
     const {accent,tint}=accentTint();
     pickStyle=doc.createElement('style'); pickStyle.id='cp-pick-style';
     pickStyle.textContent=
-      '.cp-hover{outline:2px solid '+accent+'!important;outline-offset:-2px!important;'+
-        'box-shadow:inset 0 0 0 1000px '+tint+'!important;cursor:pointer!important}'+
+      '.cp-hover{outline:2px solid '+accent+'!important;outline-offset:-2px!important;cursor:pointer!important}'+
       '.cp-anchored{outline:2px solid '+accent+'!important;outline-offset:1px!important;'+
-        'box-shadow:0 0 0 2px '+tint+',inset 0 0 0 600px '+tint+'!important;border-radius:2px;transition:box-shadow .12s ease,outline-color .12s ease}';
+        'box-shadow:0 0 0 2px '+tint+'!important;border-radius:2px;transition:box-shadow .12s ease,outline-color .12s ease}';
     doc.head.appendChild(pickStyle);
   }
   function dropPickStyle(){

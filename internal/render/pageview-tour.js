@@ -63,7 +63,7 @@
       const tint = (theme === 'dark') ? 'rgba(136,192,208,.22)' : 'rgba(94,129,172,.15)';
       styleTag = d.createElement('style'); styleTag.textContent =
         '.cf-hl{outline:2px solid ' + accent + '!important;outline-offset:1px!important;' +
-        'box-shadow:0 0 0 2px ' + tint + ',inset 0 0 0 600px ' + tint + '!important;border-radius:2px}';
+        'box-shadow:0 0 0 2px ' + tint + '!important;border-radius:2px}';
       d.head.appendChild(styleTag);
     } catch (_) { }
   }
