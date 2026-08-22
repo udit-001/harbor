@@ -43,24 +43,28 @@ harbor workspace delete "<name>" --force       # Skip the confirmation prompt
 
 ## Pages
 
-A page is an atomic, standalone HTML artifact the agent produces. Importing
-copies the file into the managed store (`<data_dir>/store/<workspace>/<slug>.html`),
-safe from temp wipes, and records provenance (description, context, tags) plus
-an FTS-indexed body. Pages carry a status: draft / published / archived.
+A page is an atomic artifact the agent produces: HTML, markdown, pdf, text,
+svg, image, or excalidraw (format inferred from the source file; `--format`
+overrides). Importing copies the file into the managed store
+(`<data_dir>/store/<workspace>/<slug>.<format>`), safe from temp wipes, and
+records provenance (description, context, tags) plus an FTS-indexed body.
+Pages carry a status: draft / published / archived.
 
 ```bash
 harbor page add dashboard.html --workspace income-tracker \
     --description "monthly totals chart" --context "prototype v2" --tag finance
+harbor page add notes.md --workspace research --description "findings"
+harbor page add diagram.png --workspace design
 harbor page add report.html --workspace finance --title "Q3 Report" \
     --tag report --tag finance
-harbor page list                              # List pages
+harbor page list                              # List pages (FORMAT column)
 harbor page list --workspace income-tracker --status published
 harbor page list --tag finance --search "totals chart"
 harbor page read <slug>                       # Metadata, tags, origin, body excerpt
 harbor page update <slug> --description "..."
 harbor page update <slug> --status published
 harbor page update <slug> --tag finance --tag chart   # Replaces the full tag set
-harbor page update <slug> --file <new.html>          # Replace the HTML content
+harbor page update <slug> --file <new.md>            # Replace the content (must match the page's format)
 harbor page delete <slug>                     # Remove page + its managed file
 ```
 
@@ -68,11 +72,11 @@ harbor page delete <slug>                     # Remove page + its managed file
 rather than auto-creating a phantom one. Pages without a description get a
 warning — descriptions power search.
 
-`harbor page update --file` is how content changes reach the served page:
-after `page add`, the page the dashboard serves is the managed copy, and
-`--file` replaces it (copying the new HTML into the managed store, re-extracting
-body text, and bumping `updated_at`). Without `--file`, `page update` only
-touches metadata.
+`harbor page update --file` is how content changes reach the served artifact:
+after `page add`, what the dashboard serves is the managed copy, and `--file`
+replaces it (copying the new file into the managed store under the page's
+existing format, re-extracting body text, and bumping `updated_at`). Without
+`--file`, `page update` only touches metadata.
 
 ## Tags
 
@@ -102,8 +106,9 @@ names/descriptions. Search without `--rebuild-index` requires a `<query>`.
 ## Comments (feedback loop)
 
 A comment is feedback anchored to a page (by text selection, element, or the
-page). It lives in the database and never edits the page file; the agent reads
-the open queue and acts on it.
+page — HTML pages support all three; other formats anchor to the whole page,
+since there's no DOM inside them to select against). It lives in the database
+and never edits the page file; the agent reads the open queue and acts on it.
 
 ```bash
 harbor comments list                                # List open comments (default)
@@ -118,7 +123,8 @@ harbor comments update <id> --status done           # Close once addressed
 
 The agent answers a comment by editing the page, placing a
 `data-cf-change="<id>"` marker on the edited element, and recording the
-change — which the dashboard walks the human through ("What changed").
+change — which the dashboard walks the human through ("What changed"). Markers
+live in HTML pages; non-HTML formats have no walkthrough.
 
 ```bash
 harbor change add <slug> --change-id cf-1 --title "Widen the chart" \
@@ -215,12 +221,12 @@ is present, otherwise uses the committed `*_templ.go`.
 
 ## File Naming
 
-Imported pages are stored in the managed store as real files, named by slug
-(dashes, derived from title):
+Imported pages are stored in the managed store as real files, named
+`<slug>.<format>` where the extension is the page's format:
 
 | Type        | Location                                          | Example                     |
 |-------------|---------------------------------------------------|-----------------------------|
-| Page HTML   | `<data_dir>/store/<workspace>/<slug>.html`        | `monthly-totals.html`       |
+| Artifact    | `<data_dir>/store/<workspace>/<slug>.<format>`    | `monthly-totals.html`, `notes.md` |
 | Asset       | `<workspace>/assets/<filename>`                   | `style.css`                 |
 
 ## Workspace Layout
@@ -232,6 +238,8 @@ Imported pages are stored in the managed store as real files, named by slug
 
 Pages do **not** live in the workspace directory — they're imported into the
 managed store (`<data_dir>/store/<workspace>/`) and referenced by the dashboard.
+The stored file is the artifact; the dashboard derives its view (raw bytes,
+rendered markdown/text, or the embedded excalidraw viewer) from the format.
 
 ## Data
 

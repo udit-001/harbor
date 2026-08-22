@@ -1,8 +1,10 @@
 # Harbor
 
-Your agent builds HTML pages; they vanish into temp folders. Harbor keeps
-them: import once, find any of them later — plus a read-only dashboard to
-browse, comment, and review them.
+Your agent builds dashboards, reports, diagrams, drawings — then they vanish
+into temp folders. Harbor gives every artifact a home: HTML pages, markdown,
+PDFs, SVGs, images, and excalidraw files import once, stay full-text
+searchable, and open in a local read-only dashboard where your comments loop
+back to the agent.
 
 ```bash
 go install github.com/udit-001/harbor/cmd/harbor@latest
@@ -18,8 +20,9 @@ harbor start                           # dashboard on :9090
 
 ## The model
 
-- **Page** — one self-contained HTML artifact, stored byte-for-byte with its
-  provenance (description, where it came from). Draft / published / archived.
+- **Page** — one stored artifact (HTML page, markdown doc, PDF, SVG or image,
+excalidraw drawing), kept byte-for-byte with its provenance. Draft / published /
+archived.
 - **Workspace** — the body of work a page belongs to (a directory seeded with
   `RESOURCES.md`, `NOTES.md`, and `assets/`).
 - **Tags** — cross-workspace labels.
@@ -28,11 +31,11 @@ harbor start                           # dashboard on :9090
 
 `harbor start` serves the dashboard locally:
 
-- Sidebar of workspaces and tags, status pills, live search
-- Container ⇄ full page view, prev/next within the current set
-- Anchored comments — select text or an element to leave feedback
-- What-changed walkthrough — replays recorded `harbor change` entries against the page
-- Light / dark theme, persisted
+- **Find** — sidebar of workspaces and tags, status pills, live full-text search
+- **Read** — container ⇄ full page view, prev/next within the current set
+- **Comment** — anchored feedback: select text or an element in an HTML page
+- **Review** — the what-changed walkthrough replays recorded `harbor change` entries
+- **Theme** — light / dark, persisted
 
 ## Commands
 

@@ -1,7 +1,7 @@
 # Harbor
 
-CLI + read-only web dashboard for organizing and finding the HTML pages your
-agent builds.
+CLI + read-only web dashboard for organizing and finding the artifacts your
+agent builds — HTML pages, markdown, PDFs, SVGs, images, excalidraw drawings.
 
 ## Commands
 
@@ -21,6 +21,25 @@ agent builds.
 - `internal/render/` — all HTML output.
 - `internal/db/` — SQLite via sqlx; `internal/migrate/` is goose-managed `*.sql`.
 - `internal/{config,extract,markdown,skills,urls,version,web}` — supporting packages.
+  `extract` owns the **format vocabulary** (`ArtifactFormat`, `ArtifactBodyText`,
+  `ValidArtifactFormat`) — resolve and extract through it; nothing upstream
+  re-derives a file kind from its extension.
+
+## Artifacts
+
+A page is one artifact: the stored file IS the artifact, rendering is a view
+derived on read. Seven formats across three **view families**:
+
+| Family | Formats | Serving |
+|---|---|---|
+| native | html · pdf · svg · image | `/raw` serves the bytes; browser renders |
+| text-frame | markdown · text | `/view` derives a render (goldmark / styled `<pre>`) from the source |
+| app | excalidraw | `/view` hosts the vendored read-only viewer (`internal/web/excalidraw/`) |
+
+Managed store filename is `<slug>.<format>` — stage and commit under that name.
+The pageview iframe src follows the family; pop-out always targets `/raw`.
+Non-html formats anchor whole-page comments only (no DOM inside the iframe to
+path against) and never show the what-changed tour.
 
 ## Rendering
 
@@ -52,7 +71,7 @@ iframe's `contentWindow`). View mode persists per slug in
 
 ### Theming
 
-Ligh/dark is driven by `data-theme` on `<html>` and `localStorage['harbor_theme']`
+Light/dark is driven by `data-theme` on `<html>` and `localStorage['harbor_theme']`
 (set in `<head>` before paint). All three surfaces (library, page view, frame)
 define a `[data-theme="dark"]` block overriding the same CSS variables
 (`--bg`, `--surface`, … Nord palette). Keep the names consistent across surfaces.
