@@ -38,9 +38,16 @@
   }
   function claimReader() { if (window.harborModes && window.harborModes.get() === 'tour') window.harborModes.set('reader'); }
   // If COMMENT claims the stage, the tour yields (closes cleanly).
-  document.addEventListener('harbor-mode', function (e) { if (e.detail.next === 'comment') finish(); });
+  document.addEventListener('harbor-mode', function (e) {
+    if (e.detail.next === 'comment') { chipSuppressed = true; finish(); }
+    else if (e.detail.prev === 'comment') {
+      chipSuppressed = false;
+      if (matched.length && card.hidden) btn.hidden = false;
+    }
+  });
 
   let all = [], matched = [], idx = -1, iframeReady = false;
+  let chipSuppressed = false; // comment mode claimed the stage; chip returns when it releases
   let hlEl = null, styleTag = null;
 
   function locate(id) {
@@ -103,7 +110,7 @@
     card.style.left = left + 'px';
   }
   function go(i) { if (i < 0 || i >= matched.length) return; idx = i; render(); }
-  function doHide() { card.classList.remove('cf-exit'); card.hidden = true; card.setAttribute('aria-hidden', 'true'); btn.hidden = false; }
+  function doHide() { card.classList.remove('cf-exit'); card.hidden = true; card.setAttribute('aria-hidden', 'true'); btn.hidden = chipSuppressed; }
   function finish() {
     claimReader();
     clearHl();
@@ -116,7 +123,7 @@
   function tryReady() {
     if (!iframeReady || !all.length) return;
     matched = all.map(function (c) { return { change: c, el: locate(c.changeId) }; }).filter(function (p) { return p.el; });
-    if (matched.length) btn.hidden = false;
+    if (matched.length && !chipSuppressed) btn.hidden = false;
   }
   prevBtn.addEventListener('click', function () { go(idx - 1); });
   nextBtn.addEventListener('click', function () { go(idx + 1); });
