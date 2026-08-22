@@ -20,11 +20,50 @@
   const chips=document.querySelectorAll('.cp-chip');
   const titleEl=document.getElementById('commentPanelTitle');
   const REDUCED=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  // Artifact formats without a DOM (pdf, image, svg, excalidraw, markdown,
-  // text) can only anchor whole-page comments: there is no element or text
-  // selection inside the iframe to path against. HTML keeps all three kinds.
-  const DOM_FORMAT=(window.__harbor&&window.__harbor.format)==='html';
-  if(!DOM_FORMAT){ typeSel.hidden=true; typeSel.value='general'; }
+  // Artifact formats without a DOM (pdf, image, svg, markdown, text) can only
+  // anchor whole-page comments: there is no element or text selection inside
+  // the iframe to path against. HTML anchors all three kinds; excalidraw
+  // anchors elements through its viewer bridge (postMessage, see below).
+  const FORMAT=(window.__harbor&&window.__harbor.format)||'html';
+  const DOM_FORMAT=FORMAT==='html';
+  const EXCAL=FORMAT==='excalidraw';
+  if(EXCAL){ var selOpt=typeSel.querySelector('option[value="selection"]'); if(selOpt) selOpt.hidden=true; }
+  else if(!DOM_FORMAT){ typeSel.hidden=true; typeSel.value='general'; }
+
+  // ── Excalidraw viewer bridge (cross-frame anchor protocol) ────────────
+  // The canvas has no DOM to path against, so element anchoring is negotiated
+  // with the viewer over postMessage. Anchors store kind:'element' with
+  // path 'excalidraw:<elementId>' — the DB and comments API stay unchanged;
+  // only resolution differs (bridge messages instead of querySelector).
+  const EX_PREFIX='excalidraw:';
+  const exIdOf=p=>(p&&p.slice(0,EX_PREFIX.length)===EX_PREFIX)?p.slice(EX_PREFIX.length):null;
+  function exPost(msg){ msg.source='harbor-shell'; try{ frame.contentWindow.postMessage(msg,'*'); }catch(_){}}
+  var exGeo={}, exGeoWait={};
+  window.addEventListener('message',function(ev){
+    var m=ev.data||{}; if(m.source!=='harbor-ex'||ev.source!==frame.contentWindow) return;
+    if(m.type==='ready'){ // viewer may load after the shell armed capture
+      if(open) exPost({type:'capture'});
+      var id=exIdOf(state.anchor); if(id) exPost({type:'select',ids:[id]});
+    }
+    else if(m.type==='pick'){
+      exGeo[m.id]=m.rect;
+      state={type:'element',anchor:EX_PREFIX+m.id,quote:''};
+      renderState(); showView('compose'); showInline();
+    }
+    else if(m.type==='geometry'){
+      exGeo[m.id]=m.rect;
+      var w=exGeoWait[m.id]; delete exGeoWait[m.id];
+      (w||[]).forEach(function(fn){ fn(m.rect); });
+    }
+  });
+  function exGeoFor(id){
+    if(exGeo[id]) return Promise.resolve(exGeo[id]);
+    return new Promise(function(res){
+      (exGeoWait[id]=exGeoWait[id]||[]).push(res);
+      exPost({type:'geometry',id:id});
+      setTimeout(function(){ res(exGeo[id]||null); },1200); // viewer gone/slow: give up quietly
+    });
+  }
   // Transient status toast (bottom of the shell). Live region so assistive tech hears it.
   function toast(msg){
     var t=document.createElement('div'); t.className='pv-toast'; t.setAttribute('role','status'); t.textContent=msg;
@@ -59,6 +98,7 @@
   if(filterSeg){ moveChipThumb(); filterSeg.classList.add('thumb-ready'); }
   window.addEventListener('resize',function(){ moveChipThumb(); });
   chips.forEach(function(ch){ ch.addEventListener('click',function(){ filter=ch.dataset.filter; refreshChips(); loadList(); }); });
+  if(EXCAL){ var cap=document.getElementById('cpCapture'); if(cap) cap.textContent='Click a shape in the drawing to anchor your comment — then type and post.'; }
   newBtn.addEventListener('click',function(){ resetCompose(); showView('compose'); body.focus(); });
   cancelBtn.addEventListener('click',function(){ showView('list'); loadList(); });
   refreshChips();
@@ -79,18 +119,31 @@
   let editID=0;        // when >0 the inline box edits this open comment (PATCH)
   function mapStateAnchor(){ return {kind:state.type==='selection'?'text':(state.type==='element'?'element':'document'), path:state.anchor, quote:state.quote}; }
   function inlineResolved(){ return window.harborResolveAnchor ? window.harborResolveAnchor(mapStateAnchor()) : null; }
+  // Rect is in iframe coords (bridge geometry); translate into shell coords —
+  // same placement math as the DOM path below.
+  function positionInlineForRect(rect){
+    if(!rect) return;
+    var fr=frame.getBoundingClientRect();
+    var cw=inlineBox.offsetWidth||288, ch=inlineBox.offsetHeight||212, margin=12;
+    var left=Math.max(8,Math.min(fr.left+rect.left+rect.width/2-cw/2, window.innerWidth-cw-8));
+    inlineBox.style.transform=''; inlineBox.style.top=''; inlineBox.style.left='';
+    var ty=fr.top+rect.top;
+    if(ty>ch+margin){ inlineBox.style.top=(ty-ch-margin)+'px'; } else { inlineBox.style.top=(ty+rect.height+margin)+'px'; }
+    inlineBox.style.left=left+'px';
+  }
   function positionInlineFor(el){
     if(!el) return;
     var fr=frame.getBoundingClientRect(), er=el.getBoundingClientRect();
-    var cw=inlineBox.offsetWidth||288, ch=inlineBox.offsetHeight||212, margin=12;
-    var left=Math.max(8,Math.min(fr.left+er.left+er.width/2-cw/2, window.innerWidth-cw-8));
-    inlineBox.style.transform=''; inlineBox.style.top=''; inlineBox.style.left='';
-    var ty=fr.top+er.top;
-    if(ty>ch+margin){ inlineBox.style.top=(ty-ch-margin)+'px'; } else { inlineBox.style.top=(ty+er.height+margin)+'px'; }
-    inlineBox.style.left=left+'px';
+    positionInlineForRect({left:er.left, top:er.top, width:er.width, height:er.height});
   }
   function positionInline(){
-    var r=inlineResolved(); if(!r||!r.el) return false;
+    var r=inlineResolved(); if(!r) return false;
+    if(r.exId){ // async: place now from cache if fresh, else when geometry lands
+      exGeoFor(r.exId).then(function(rect){ if(inlineBox.hidden) return; positionInlineForRect(rect); });
+      if(exGeo[r.exId]) { positionInlineForRect(exGeo[r.exId]); return true; }
+      return true; // positioned pending; don't fall back to whole-page flow
+    }
+    if(!r.el) return false;
     positionInlineFor(r.el); return true;
   }
   function showInline(){
@@ -272,6 +325,7 @@
     panel.inert=!v;
     btn.setAttribute('aria-expanded',String(v));
     document.body.classList.toggle('commenting',v);
+    if(EXCAL) exPost({type:v?'capture':'capture-off'});
     if(v){ if(window.harborModes) window.harborModes.set('comment'); hideAfford(); showHeader(); showView('list'); loadList(); if(!panel.hasAttribute('tabindex')) panel.tabIndex=-1; panel.focus(); }
     else {
       if(window.harborModes && window.harborModes.get()==='comment') window.harborModes.set('reader');
@@ -324,6 +378,7 @@
     if(pickStyle&&pickStyle.parentNode) pickStyle.parentNode.removeChild(pickStyle);
     pickStyle=null;
     clearHover();
+    if(EXCAL) exPost({type:'clear'}); // release the viewer-side anchor highlight too
   }
   // Element clicks are captured while the panel is open, letting the user pick
   // and — importantly — re-target: clicking a different element simply moves the
@@ -428,13 +483,15 @@
   function applyAnchorHighlight(){
     clearAnchored();
     if(!doc||!state.anchor) return;
+    var id=exIdOf(state.anchor);
+    if(id){ exPost({type:'select',ids:[id]}); return; } // viewer highlights via its own selection
     const el=doc.querySelector(state.anchor);
     if(el&&el.nodeType===1){ ensurePickStyle(); anchoredEl=el; el.classList.add('cp-anchored'); }
   }
   // Track the deepest element under the pointer while an element pick is live,
   // so hovering previews exactly what a click would anchor to.
   function trackHover(ev){
-    if(!canPickElement()||hasTextSelection()){ clearHover(); return; }
+    if(EXCAL||!canPickElement()||hasTextSelection()){ clearHover(); return; }
     const el=doc.elementFromPoint(ev.clientX,ev.clientY);
     if(el===hoverEl) return;
     clearHover();
@@ -490,7 +547,12 @@
     return null;
   }
   function resolveAnchor(anchor){
-    if(!doc||!anchor) return null;
+    if(!anchor) return null;
+    // Excalidraw anchors carry no CSS path — they resolve through the viewer
+    // bridge. Callers branch on .exId before touching .el.
+    var eid=exIdOf(anchor.path);
+    if(eid){ return {exId:eid}; }
+    if(!doc) return null;
     // 1) Stable identity: the best-change-marker id survives edits.
     if(anchor.markerID){ try{ var m=doc.querySelector('[data-cf-change="'+attrEscape(anchor.markerID)+'"]'); if(m) return {el:m}; }catch(_){} }
     // 2) Fallback: the recorded selector.
@@ -532,6 +594,7 @@
         if(text && sel && !sel.isCollapsed){ const an=sel.anchorNode; const pe=an?(an.nodeType===1?an:an.parentElement):null; addPin({kind:'text',path:cssPath(pe),quote:text}); }
         return;
       }
+      if(EXCAL) return; // canvas: no DOM selection to adopt
       if(open){
         if(!text) return;
         // The anchor of a text selection is usually a text node (use its
@@ -551,8 +614,9 @@
     doc.addEventListener('mousedown',()=>{ hideAfford(); if(!inlineBox.hidden && !collecting) cancelInline(); },true);
     doc.addEventListener('scroll',()=>hideAfford(),true);
     doc.addEventListener('selectionchange',()=>{ const s=frame.contentWindow&&frame.contentWindow.getSelection(); if(!s||s.isCollapsed) hideAfford(); });
-    doc.addEventListener('mousemove',trackHover,true);
+    doc.addEventListener('mousemove',()=>{ if(EXCAL) return; trackHover(...arguments); },true);
     doc.addEventListener('click',(ev)=>{
+      if(EXCAL) return; // canvas picks arrive over the bridge instead
       // Collecting (no panel): a click adds the element to the set;
       // clicking an already-pinned element toggles it off (removal).
       if(collecting && !open){
@@ -628,7 +692,16 @@
   // revised (use Reply instead); Reply starts a new comment citing the parent.
   var itemsById={};
   var jumpIdx={};
-  function firstAnchorLabel(a){ if(!a) return ''; if(a.kind==='text') return a.quote||a.path||'text selection'; if(a.kind==='element') return a.path||'element'; return 'whole page'; }
+  function firstAnchorLabel(a){
+    if(!a) return '';
+    if(a.kind==='text') return a.quote||a.path||'text selection';
+    if(a.kind==='element'){
+      var p=a.path||'';
+      if(p.slice(0,11)==='excalidraw:') return 'shape in drawing';
+      return p||'element';
+    }
+    return 'whole page';
+  }
   function anchorLabel(c){
     var a=c.anchors||[];
     if(a.length>1) return a.length+' spots';
@@ -675,6 +748,7 @@
     if(!a.length) return;
     var i=(jumpIdx[c.id]||0)%a.length; jumpIdx[c.id]=i+1;
     var res=window.harborResolveAnchor&&window.harborResolveAnchor(a[i]);
+    if(res&&res.exId){ exPost({type:'jump', id:res.exId}); return; } // viewer scrolls + highlights
     if(!res||!res.el){ toast("Can't find that spot in the page — it may have moved since a rebuild."); return; }
     var el=res.el;
     try{ el.scrollIntoView({behavior:REDUCED?'auto':'smooth',block:'center'}); }catch(_){ try{el.scrollIntoView();}catch(_2){} }
