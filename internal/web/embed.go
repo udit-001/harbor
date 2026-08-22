@@ -1,9 +1,20 @@
 package web
 
-import _ "embed"
+import (
+	"embed"
+	_ "embed"
+)
 
 //go:embed app.css
 var CSS []byte
+
+// Excalidraw holds the vendored read-only viewer bundles (react, react-dom,
+// @excalidraw/excalidraw 0.17.6 production UMD builds + font assets), served
+// under /excalidraw/. Vendored so the binary stays self-contained — no CDN.
+// Provenance: unpkg.com, pinned versions, see internal/web/excalidraw/PROVENANCE.md.
+//
+//go:embed all:excalidraw
+var Excalidraw embed.FS
 
 //go:embed favicon.ico
 var FaviconICO []byte

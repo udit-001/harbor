@@ -77,6 +77,34 @@ func NewMux(store *db.Store, dataDir string, devCSS bool) *http.ServeMux {
 		w.Write(web.Manifest)
 	})
 
+	// Vendored excalidraw viewer bundles (read-only app family, HARB-PLAN-4).
+	// Path is sanitized by stripping the prefix; the remaining segments are
+	// matched against the embedded FS so only vendored files can be served.
+	mux.HandleFunc("GET /excalidraw/", func(w http.ResponseWriter, r *http.Request) {
+		name := strings.TrimPrefix(r.URL.Path, "/excalidraw/")
+		if name == "" || strings.Contains(name, "..") {
+			http.NotFound(w, r)
+			return
+		}
+		data, err := web.Excalidraw.ReadFile("excalidraw/" + name)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		ct := "application/octet-stream"
+		switch {
+		case strings.HasSuffix(name, ".js"):
+			ct = "text/javascript; charset=utf-8"
+		case strings.HasSuffix(name, ".woff2"):
+			ct = "font/woff2"
+		case strings.HasSuffix(name, ".md"):
+			ct = "text/markdown; charset=utf-8"
+		}
+		w.Header().Set("Content-Type", ct)
+		w.Header().Set("Cache-Control", "public, max-age=31536000, immutable") // content-pinned vendor dir
+		_, _ = w.Write(data)
+	})
+
 	mux.HandleFunc("GET /sw.js", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/javascript")
 		w.Header().Set("Cache-Control", "no-cache")
@@ -540,11 +568,12 @@ func handlePageRaw(store *db.Store, dataDir string) http.HandlerFunc {
 	}
 }
 
-// handlePageViewDoc renders a text-frame page (markdown, text) into an
-// HTML view the pageview iframe can host: markdown goes through the goldmark
-// renderer, text wraps in a styled <pre>. The stored file is never touched —
-// the view is derived on read, raw bytes remain at /raw (pop-out shows them).
-// Native formats don't route here; the iframe points at /raw directly.
+// handlePageViewDoc serves derived views the pageview iframe can host:
+// text-frame formats render from their source (markdown via goldmark, text as
+// styled <pre>), excalidraw gets the vendored read-only viewer shell. The
+// stored file is never touched — the view is derived on read, raw bytes remain
+// at /raw (pop-out shows them). Native formats don't route here; the iframe
+// points at /raw directly.
 func handlePageViewDoc(store *db.Store, dataDir string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		page, err := store.PageBySlug(r.PathValue("slug"))
@@ -552,6 +581,16 @@ func handlePageViewDoc(store *db.Store, dataDir string) http.HandlerFunc {
 			writeRawNotFound(w)
 			return
 		}
+
+		// App family: the shell only needs the raw URL — it fetches the scene
+		// itself, so no file read here.
+		if page.Format == db.FormatExcalidraw {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			rawURL := "/page/" + page.Slug + "/raw"
+			_, _ = w.Write([]byte(render.ExcalidrawView(render.PageMeta{Slug: page.Slug, Title: page.Title, Format: page.Format}, rawURL)))
+			return
+		}
+
 		wsName := ""
 		if ws, werr := store.GetWorkspace(page.WorkspaceID); werr == nil {
 			wsName = ws.Name
@@ -626,7 +665,8 @@ func handlePageView(store *db.Store, dataDir string) http.HandlerFunc {
 		// image) serve their raw bytes; text-frame formats (markdown/text) get
 		// the derived view. Pop-out always targets the raw bytes.
 		iframeURL := "/page/" + page.Slug + "/raw"
-		if page.Format == db.FormatMarkdown || page.Format == db.FormatText {
+		switch page.Format {
+		case db.FormatMarkdown, db.FormatText, db.FormatExcalidraw:
 			iframeURL = "/page/" + page.Slug + "/view"
 		}
 		data := render.PageViewData{
