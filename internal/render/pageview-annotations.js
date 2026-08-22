@@ -392,6 +392,11 @@
     const {accent,tint}=accentTint();
     pickStyle=doc.createElement('style'); pickStyle.id='cp-pick-style';
     pickStyle.textContent=
+      // Clicking any shell control moves focus out of the iframe, and Chromium
+      // repaints unfocused selections in its own washed-gray palette. Pin the
+      // highlight to our tint for the whole commenting session so it reads
+      // identically focused or not; text color stays the page's own.
+      '::selection{background:'+tint+'!important}'+
       '.cp-hover{outline:2px solid '+accent+'!important;outline-offset:-2px!important;cursor:pointer!important}'+
       '.cp-anchored{outline:2px solid '+accent+'!important;outline-offset:1px!important;'+
         'box-shadow:0 0 0 2px '+tint+'!important;border-radius:2px;transition:box-shadow .12s ease,outline-color .12s ease}';
