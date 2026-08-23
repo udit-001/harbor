@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"github.com/udit-001/harbor/internal/extract"
 	"sort"
 	"strings"
 )
@@ -46,11 +47,12 @@ func normalizePageStatus(status string) (string, error) {
 func normalizePageFormat(format string) (string, error) {
 	switch format {
 	case "":
-		return FormatHTML, nil
-	case FormatHTML, FormatMarkdown, FormatPDF, FormatText, FormatSVG, FormatImage, FormatExcalidraw:
-		return format, nil
+		return extract.ArtifactHTML, nil
 	default:
-		return "", fmt.Errorf("page format must be one of: html, markdown, pdf, text, svg, image, excalidraw (got %q)", format)
+		if !extract.ValidArtifactFormat(format) {
+			return "", fmt.Errorf("page format must be one of: html, markdown, pdf, text, svg, image, excalidraw (got %q)", format)
+		}
+		return format, nil
 	}
 }
 

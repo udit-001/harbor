@@ -5,6 +5,22 @@ import (
 	"strings"
 )
 
+// The canonical artifact-format vocabulary. Every consumer — db validation,
+// CLI inference, serving content types — reads from here; adding a format is
+// one edit in this file plus whatever serving behavior it needs.
+const (
+	ArtifactHTML       = "html"
+	ArtifactMarkdown   = "markdown"
+	ArtifactPDF        = "pdf"
+	ArtifactText       = "text"
+	ArtifactSVG        = "svg"
+	ArtifactImage      = "image"
+	ArtifactExcalidraw = "excalidraw"
+)
+
+// AllArtifactFormats is the closed set, in family order.
+var AllArtifactFormats = []string{ArtifactHTML, ArtifactMarkdown, ArtifactPDF, ArtifactText, ArtifactSVG, ArtifactImage, ArtifactExcalidraw}
+
 // artifactFormats maps file extensions (lower-cased, with dot) to the artifact
 // formats Harbor's library accepts. These are the byte formats the learn-tool
 // detector never needed; they join the source-document formats in ArtifactFormat.
@@ -29,13 +45,13 @@ func ArtifactFormat(source, override string) string {
 	}
 	switch Detect(source) {
 	case FormatHTML:
-		return "html"
+		return ArtifactHTML
 	case FormatMarkdown:
-		return "markdown"
+		return ArtifactMarkdown
 	case FormatPDF:
-		return "pdf"
+		return ArtifactPDF
 	case FormatText:
-		return "text"
+		return ArtifactText
 	}
 	return ""
 }
@@ -59,11 +75,11 @@ func ArtifactBodyText(source, format string, data []byte) string {
 }
 
 // ValidArtifactFormat reports whether f is one of Harbor's artifact formats.
-// Kept beside ArtifactFormat so the format vocabulary has one home.
 func ValidArtifactFormat(f string) bool {
-	switch f {
-	case "html", "markdown", "pdf", "text", "svg", "image", "excalidraw":
-		return true
+	for _, known := range AllArtifactFormats {
+		if known == f {
+			return true
+		}
 	}
 	return false
 }

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/udit-001/harbor/internal/db"
+	"github.com/udit-001/harbor/internal/extract"
 	"github.com/udit-001/harbor/internal/render"
 	"github.com/udit-001/harbor/internal/web"
 )
@@ -523,21 +524,21 @@ func managedArtifactPath(dataDir, workspaceName, slug, format string) string {
 // endpoint renders text-frame formats from these same bytes.
 func formatContentType(format string, data []byte) string {
 	switch format {
-	case db.FormatPDF:
+	case extract.ArtifactPDF:
 		return "application/pdf"
-	case db.FormatSVG:
+	case extract.ArtifactSVG:
 		return "image/svg+xml"
-	case db.FormatImage:
+	case extract.ArtifactImage:
 		ct := http.DetectContentType(data) // png/jpeg/gif/webp/bmp
 		if !strings.HasPrefix(ct, "image/") {
 			return "application/octet-stream"
 		}
 		return ct
-	case db.FormatMarkdown:
+	case extract.ArtifactMarkdown:
 		return "text/markdown; charset=utf-8"
-	case db.FormatText:
+	case extract.ArtifactText:
 		return "text/plain; charset=utf-8"
-	case db.FormatExcalidraw:
+	case extract.ArtifactExcalidraw:
 		return "application/json"
 	default:
 		return "text/html; charset=utf-8"
@@ -613,7 +614,7 @@ func handlePageViewDoc(store *db.Store, dataDir string) http.HandlerFunc {
 
 		// App family: the shell only needs the raw URL — it fetches the scene
 		// itself, so no file read here.
-		if page.Format == db.FormatExcalidraw {
+		if page.Format == extract.ArtifactExcalidraw {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			rawURL := "/page/" + page.Slug + "/raw"
 			_, _ = w.Write([]byte(render.ExcalidrawView(render.PageMeta{Slug: page.Slug, Title: page.Title, Format: page.Format}, rawURL)))
@@ -695,7 +696,7 @@ func handlePageView(store *db.Store, dataDir string) http.HandlerFunc {
 		// the derived view. Pop-out always targets the raw bytes.
 		iframeURL := "/page/" + page.Slug + "/raw"
 		switch page.Format {
-		case db.FormatMarkdown, db.FormatText, db.FormatExcalidraw:
+		case extract.ArtifactMarkdown, extract.ArtifactText, extract.ArtifactExcalidraw:
 			iframeURL = "/page/" + page.Slug + "/view"
 		}
 		data := render.PageViewData{

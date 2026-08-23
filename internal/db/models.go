@@ -40,20 +40,9 @@ type Page struct {
 	UpdatedAt   string `db:"updated_at" json:"updatedAt"`
 }
 
-// Page formats (HARB-59). The stored file is the artifact; format derives its
-// view family: native (serve raw bytes — the browser renders), text-frame
-// (harbor renders a view from the source), app (embedded viewer). Adding a
-// format is a deliberate act: it must map to a family and pick up a content
-// type, FTS extractor, and feedback surface here.
-const (
-	FormatHTML       = "html"
-	FormatMarkdown   = "markdown"
-	FormatPDF        = "pdf"
-	FormatText       = "text"
-	FormatSVG        = "svg"
-	FormatImage      = "image"
-	FormatExcalidraw = "excalidraw"
-)
+// Page formats live in internal/extract (ArtifactHTML … ArtifactExcalidraw):
+// one vocabulary for detection, storage validation, and serving. db stores
+// the string and validates through extract.ValidArtifactFormat.
 
 // Tag is a first-class grouping object shared by pages: a name plus a
 // description (the description is the semantic payload — a bare name adds no
