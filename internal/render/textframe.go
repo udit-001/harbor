@@ -20,7 +20,7 @@ func TextFrameView(page PageMeta, source string) string {
 	}
 	return `<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>` + esc(page.Title) + `</title>` + textFrameCSS() + `</head><body>` + body + `</body></html>`
+<title>` + esc(page.Title) + `</title>` + ThemeBootScript + textFrameCSS() + `</head><body>` + body + `</body></html>`
 }
 
 // PageMeta is the subset of a page the view needs: identity + format. Keeping
@@ -33,11 +33,12 @@ type PageMeta struct {
 }
 
 func textFrameCSS() string {
-	return `<style>
-:root{--bg:#fff;--surface:#f6f8fb;--text:#4c566a;--strong:#2e3440;--muted:#5f6b7d;
---border:#d8dee9;--hair:#e5e9f0;--acc:#466286;--acc-soft:#e0e7ff;
---font:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
-@media(prefers-color-scheme:dark){:root{--bg:#2e3440;--surface:#3b4252;--text:#d8dee9;--strong:#eceff4;--muted:#81a1c1;--border:#4c566a;--hair:#3b4252;--acc:#88c0d0;--acc-soft:rgba(136,192,208,.18)}}
+	return `<style>` + ThemeTokens() + `
+/* Surface extras: a paper-white reading surface in light mode; dark inherits
+   --bg from the tokens. The iframe follows the shell's manual theme via
+   ThemeBootScript (same-origin localStorage) instead of only the OS preference. */
+/* paper-white reading surface, light theme only */
+:root:not([data-theme="dark"]){--bg:#fff}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);font:400 15px/1.7 var(--font);
 -webkit-font-smoothing:antialiased;padding:40px max(24px,calc((100% - 760px)/2)) 80px}

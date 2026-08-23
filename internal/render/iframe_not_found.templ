@@ -7,23 +7,15 @@ templ iframeNotFoundPage(kind, ident string) {
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<title>Not found</title>
-			<script>(function(){var t=localStorage.getItem('harbor_theme');if(!t||t==='system'){t=window.matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light'}document.documentElement.dataset.theme=t})()</script>
+			{ ThemeBootScript }
 			<style>
+				{ ThemeTokens() }
 				:root {
-					--bg: #eceff4;
-					--card: #ffffff;
-					--border: #e5e9f0;
-					--muted: #6b7689;
-					--text: #2e3440;
-					--link: #5e81ac;
+					--card: var(--surface);
+					--link: var(--acc);
 				}
 				[data-theme="dark"] {
 					--bg: #353b4a;
-					--card: #3b4252;
-					--border: #434c5e;
-					--muted: #81a1c1;
-					--text: #d8dee9;
-					--link: #81a1c1;
 				}
 				* { box-sizing: border-box; }
 				body {

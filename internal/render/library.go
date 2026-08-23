@@ -436,18 +436,9 @@ func logo() string {
 }
 
 func libraryCSS() string {
-	return `<style>
-:root{--bg:#eceff4;--surface:#fff;--surface2:#f6f8fb;--border:#d8dee9;--hair:#e5e9f0;
---text:#4c566a;--muted:#5f6b7d;--strong:#2e3440;--acc:#466286;--acc-soft:#e0e7ff;
---ok:#3f6d25;--ok-soft:#e6f0e6;--warn:#9c4f37;--warn-soft:#fadfd2;--arch:#5f6b7d;--arch-soft:#eceff4;
---chip:rgba(0,0,0,.05);
---font:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
---r:8px;--rs:6px;--ease:cubic-bezier(.23,1,.32,1);--ease-in-out:cubic-bezier(.77,0,.175,1)}
-[data-theme="dark"]{
---bg:#2e3440;--surface:#3b4252;--surface2:#434c5e;--border:#4c566a;--hair:#3b4252;
---text:#d8dee9;--muted:#81a1c1;--strong:#eceff4;--acc:#88c0d0;--acc-soft:rgba(136,192,208,.18);
---ok:#a3be8c;--ok-soft:rgba(163,190,140,.16);--warn:#d08770;--warn-soft:rgba(208,135,112,.16);--arch:#81a1c1;--arch-soft:rgba(129,161,193,.16);
---chip:rgba(255,255,255,.09)}
+	return `<style>` + ThemeTokens() + `
+:root{--chip:rgba(0,0,0,.05);--r:8px;--rs:6px}
+[data-theme="dark"]{--chip:rgba(255,255,255,.09)}
 *{box-sizing:border-box}
 body{margin:0;font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);
 color:var(--text);font-size:15px;line-height:1.6;-webkit-font-smoothing:antialiased}
