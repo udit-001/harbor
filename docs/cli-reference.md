@@ -72,8 +72,8 @@ harbor page delete <slug>                     # Remove page + its managed file
 rather than auto-creating a phantom one. Pages without a description get a
 warning — descriptions power search.
 
-`harbor page update --file` is how content changes reach the served artifact:
-after `page add`, what the dashboard serves is the managed copy, and `--file`
+`harbor page update --file` is how content changes reach the **served copy**:
+after `page add`, what the dashboard serves is the stored file, and `--file`
 replaces it (copying the new file into the managed store under the page's
 existing format, re-extracting body text, and bumping `updated_at`). Without
 `--file`, `page update` only touches metadata.
@@ -159,7 +159,11 @@ harbor asset create style.css -w "<name>" --body-file /tmp/style.css
 
 `asset list` groups assets by source — **seeded** (universal defaults every
 workspace starts with), **vendored** (third-party libs added on demand), and
-**user** (authored via `asset create`) — and shows the action for each.
+**user** (authored via `asset create`) — shows the action for each, and prints
+the absolute assets directory (assets are plain files; edit them in place).
+The dashboard serves a workspace's assets to that workspace's pages:
+reference them relatively (`<link href="assets/style.css">`) and
+`/page/<slug>/assets/style.css` resolves against the page's own workspace.
 
 ## Configuration
 

@@ -134,6 +134,7 @@ func NewMux(store *db.Store, dataDir string, devCSS bool) *http.ServeMux {
 	mux.HandleFunc("GET /page/{slug}", handlePageView(store, dataDir))
 	mux.HandleFunc("GET /page/{slug}/raw", handlePageRaw(store, dataDir))
 	mux.HandleFunc("GET /page/{slug}/view", handlePageViewDoc(store, dataDir))
+	mux.HandleFunc("GET /page/{slug}/assets/{path...}", handlePageAssets(store))
 	mux.HandleFunc("GET /about", handleAboutPage(store))
 
 	// Live-sync: CLI mutations broadcast through the broker; the dashboard
@@ -565,6 +566,34 @@ func handlePageRaw(store *db.Store, dataDir string) http.HandlerFunc {
 		}
 		w.Header().Set("Content-Type", formatContentType(page.Format, data))
 		_, _ = w.Write(data)
+	}
+}
+
+// handlePageAssets serves a page's workspace assets: GET /page/{slug}/assets/*
+// maps to <the page's workspace>/assets/* — so an artifact referencing
+// assets/foo.css relatively just works, byte-for-byte, with no rewrite.
+// Workspace-scoped on purpose: two workspaces may hold different files under
+// the same name; the page's own workspace wins. Assets are raw by model (no
+// DB row), so this is a plain guarded file serve.
+func handlePageAssets(store *db.Store) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		page, err := store.PageBySlug(r.PathValue("slug"))
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		ws, err := store.GetWorkspace(page.WorkspaceID)
+		if err != nil {
+			http.NotFound(w, r)
+			return
+		}
+		root := filepath.Join(ws.Path, "assets")
+		req := filepath.Clean(filepath.Join(root, r.PathValue("path")))
+		if req != root && !strings.HasPrefix(req, root+string(filepath.Separator)) {
+			http.NotFound(w, r)
+			return
+		}
+		http.ServeFile(w, r, req)
 	}
 }
 

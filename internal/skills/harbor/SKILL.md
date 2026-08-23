@@ -1,6 +1,6 @@
 ---
 name: harbor
-description: Use harbor when you build an artifact worth keeping — an HTML page, markdown doc, PDF, SVG or other image, or excalidraw drawing — register it (harbor page add), group it into a workspace (harbor workspace), or tag it (harbor tag); also when a human asks you to save, organize, find, or review your work (harbor search, page list/read), to run the dashboard (harbor start / stop), or to answer page feedback (harbor comments list/watch, harbor change add).
+description: Use harbor when you build an artifact worth keeping — an HTML page, markdown doc, PDF, SVG or other image, or excalidraw drawing — register it (harbor page add), group it into a workspace (harbor workspace), tag it (harbor tag), or give it shared styles/scripts (harbor asset); also when a human asks you to save, organize, find, or review your work (harbor search, page list/read), to run the dashboard (harbor start / stop), or to answer page feedback (harbor comments list/watch, harbor change add).
 ---
 
 # Harbor
@@ -58,6 +58,20 @@ mockup) → skip harbor; don't pollute the library.
      formats), so a future session can rediscover the artifact by describing it.
 5. **Publish when it's ready:** `harbor page update <slug> --status published`.
 
+## Shared assets
+
+An artifact that needs a stylesheet or script beside it references workspace
+assets — they serve themselves next to every page in that workspace:
+
+1. Write the file once: `harbor asset create style.css -w <name> --body-file <path>`.
+2. Reference it relatively from any page in that workspace:
+   `<link rel="stylesheet" href="assets/style.css">`.
+
+Assets are plain files — edit them directly at the directory
+`harbor asset list` prints. Pages are the opposite: the **served copy**
+changes only through `harbor page update --file`, because the push is what
+refreshes search and open dashboard tabs.
+
 ## Deterministic behaviors
 
 - **Every worth-keeping artifact you build belongs in harbor by default.**
@@ -86,9 +100,9 @@ For each open comment, in order:
 
 1. **Read it** — the `harbor comments list` row shows
    `page / quote / body` so you know exactly what to change.
-2. **Edit the artifact, then push it back.** After `page add`, harbor serves a
-   *copy* in the managed store — editing your original working file changes
-   nothing the human can see. Address the comment in your working copy, then
+2. **Edit the artifact, then push it back.** After `page add`, the **served
+   copy** lives in the managed store — editing your original working file
+   changes nothing the human can see. Address the comment in your working copy, then
    push it with `harbor page update <slug> --file <your-file>`. `--file`
    replaces the stored copy (same format) and re-indexes its body — it's the
    only way your edit reaches the human.

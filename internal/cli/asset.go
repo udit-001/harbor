@@ -112,6 +112,7 @@ on it: 'harbor asset add' when absent, 'harbor asset redeploy' when present.`,
 
 		fmt.Println()
 		fmt.Printf("  Assets for %s:\n", ws.DisplayName())
+		fmt.Printf("  Directory: %s\n", filepath.Join(ws.Path, "assets"))
 		fmt.Println()
 
 		fmt.Println("  Seeded assets:")

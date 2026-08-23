@@ -445,6 +445,7 @@ func printPageJSON(s *db.Store, page db.Page, tags ...db.Tag) error {
 func pageMap(p db.Page, workspace string, tags []db.Tag) map[string]any {
 	return map[string]any{
 		"slug":        p.Slug,
+		"managedPath": managedPagePath(workspace, p.Slug+"."+p.Format),
 		"title":       p.Title,
 		"workspace":   workspace,
 		"format":      p.Format,
