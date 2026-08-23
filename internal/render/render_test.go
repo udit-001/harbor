@@ -30,8 +30,8 @@ func TestPageViewHasCommentPanel(t *testing.T) {
 		`data-act="jump"`,            // list item action buttons
 		`id="cpReplyTo"`,             // reply context line
 		`addToSetFromSelection`,      // selection-popup ＋Add → multi-spot set (HARB-35 unified)
-		`setCollecting`,             // gather state (picker cursor + N-spots chip)
-		`collectSet`,                // multi-anchor set logic
+		`setCollecting`,              // gather state (picker cursor + N-spots chip)
+		`collectSet`,                 // multi-anchor set logic
 		`window.__harbor`,            // Go→JS data seam for extracted pageview js (HARB-36)
 	} {
 		if !strings.Contains(out, want) {

@@ -2,7 +2,7 @@
   "id": "/",
   "name": "Harbor",
   "short_name": "Harbor",
-  "description": "AI-guided learning workspaces",
+  "description": "Organize and find the standalone HTML pages your agent builds.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -11,7 +11,7 @@
   "background_color": "#2e3440",
   "lang": "en",
   "dir": "ltr",
-  "categories": ["education", "productivity"],
+  "categories": ["productivity", "developer"],
   "icons": [
     { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },

@@ -53,8 +53,13 @@ Examples:
 			return formatError("failed to create workspace", err)
 		}
 
-		// Auto-set as current workspace
+		// Auto-set as current workspace, and auto-bind the folder harbor was
+		// run from: creating a workspace from a project directory is the
+		// one-time setup that makes later commands need no --workspace.
 		_ = s.SetCurrentWorkspace(slug)
+		if _, berr := s.BindCwd(slug); berr != nil {
+			fmt.Printf("  ⚠ Could not bind %s to this folder (%v) — use 'harbor workspace bind %s'.\n", slug, berr, slug)
+		}
 
 		notifyServer("home", "changed", 0)
 

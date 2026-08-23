@@ -24,9 +24,11 @@ If a server is already running, `harbor start` prints its URL and returns.
 
 ## Workspaces
 
-A workspace is a named body of work. Pages belong to one workspace, and
-when only one workspace exists most commands use it automatically without
-`--workspace`.
+A workspace is a named body of work. Pages belong to one workspace.
+Commands resolve their workspace as: explicit `-w/--workspace`, then the
+folder binding (`workspace bind`; `workspace create` binds the folder you run
+it from automatically), then the current workspace, then the only workspace
+if just one exists.
 
 ```bash
 harbor workspace list                          # List workspaces (current marked with *)
@@ -34,6 +36,8 @@ harbor workspace stats                         # Workspaces and their page count
 harbor workspace create "<name>"               # Create a workspace (auto-sets current)
 harbor workspace create "<name>" --dir <path>  # Place the workspace elsewhere
 harbor workspace create "<name>" --topic "<title>" --description "..."  # Display title + description
+harbor workspace bind <name>                   # Bind this folder → workspace (commands stop needing -w)
+harbor workspace bind <name> --dir <path>      # Bind a different folder
 harbor workspace use "<name>"                  # Set as current workspace
 harbor workspace current                       # Show current workspace
 harbor workspace rename "<new name>" -w <name> # Rename (directory slug unchanged unless -w given)

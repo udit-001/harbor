@@ -34,21 +34,24 @@ want to see or keep? That's the worth-keeping test. Yes → it belongs in the
 library (import it). A truly throwaway fragment (a scratch layout, a dead-end
 mockup) → skip harbor; don't pollute the library.
 
-1. **Create the workspace first.** A page belongs in a named body of work:
-   `harbor workspace create "<name>" --description "<what this work is>"`.
-   Give every workspace a description — it powers disambiguation and search.
-2. **Confirm it exists** with `harbor workspace list` — a typo'd workspace
-   creates a phantom grouping.
-3. **Create tags before pages** (tags cannot auto-create):
+1. **Create the workspace once, from your project folder.** Run
+   `harbor workspace create "<name>" --description "<what this work is>"`
+   inside the project directory — harbor binds that folder to the workspace,
+   so every later command in it needs no `--workspace`. The description powers
+   disambiguation and search.
+2. **Create tags before pages** (tags cannot auto-create):
    `harbor tag create "<name>" --description "<why it exists>"`.
-4. **Import the artifact** with provenance so it can be found later:
+3. **Import the artifact** with provenance so it can be found later:
 
    ```
-   harbor page add <your-file> --workspace <name> \
+   harbor page add <your-file> \
        --description "what it shows" \
        --context "where it came from / why I made it" \
        --tag <tag1> --tag <tag2>
    ```
+
+   The workspace resolves from your folder's binding. Pass
+   `--workspace <name>` only to file into a different one.
 
    - Any supported format works — `<your-file>` can be `.md`, `.pdf`, `.svg`,
      `.png`, `.excalidraw`, …
@@ -56,7 +59,7 @@ mockup) → skip harbor; don't pollute the library.
    - `context` = *where it came from / why it exists* (provenance).
    - Both are full-text searched (as is the document body for text-bearing
      formats), so a future session can rediscover the artifact by describing it.
-5. **Publish when it's ready:** `harbor page update <slug> --status published`.
+4. **Publish when it's ready:** `harbor page update <slug> --status published`.
 
 ## Shared assets
 
@@ -78,9 +81,11 @@ refreshes search and open dashboard tabs.
   Import it the moment you produce one — don't wait to be asked. The
   worth-keeping test is the low, automatic gate: if a human would want to see
   it, it's in.
-- `harbor page add` **fails fast** if the workspace doesn't exist — the error
-  prints the exact `harbor workspace create` command. Run that command yourself;
-  the import won't auto-create the workspace behind your back.
+- The workspace for any command resolves as: explicit `--workspace`, then your
+  folder's binding, then the current workspace, then the only workspace that
+  exists. `harbor page add` **fails fast** when nothing resolves or a named
+  workspace is missing — the error prints the exact fix. Imports never
+  auto-create workspaces behind your back.
 - **Search first, then update.** Before making a new page, find an existing one
   by what it was for: `harbor search "<what it is about>"`. If a page already
   covers it, update it by slug instead of duplicating.

@@ -52,17 +52,16 @@ Examples:
 		s := mustStore(cmd)
 		source := args[0]
 
+		// Workspace resolution: explicit --workspace wins; otherwise the
+		// folder binding (walk up from cwd), then current, then single.
+		// resolveWorkspace's error teaches the fix when nothing resolves.
 		workspaceName, _ := cmd.Flags().GetString("workspace")
-		if workspaceName == "" {
-			return fmt.Errorf("--workspace is required\n  harbor page add <source> --workspace <name>")
-		}
-
-		// Fail fast: the workspace must exist (deliberate grouping name).
-		ws, err := s.GetWorkspaceByName(workspaceName)
+		wsStore, err := resolveWorkspace(s, workspaceName)
 		if err != nil {
-			return fmt.Errorf("workspace %q not found\n  Use 'harbor workspace create %q --description \"...\"' first",
-				workspaceName, workspaceName)
+			return err
 		}
+		wsRow := wsStore.Workspace()
+		workspaceName = wsRow.Name // resolved: flag, binding, current, or single
 
 		title, _ := cmd.Flags().GetString("title")
 		if title == "" {
@@ -101,7 +100,7 @@ Examples:
 			tags, _ = cmd.Flags().GetStringArray("tag")
 		}
 
-		page, err := s.CreatePage(ws.ID, title, description, context, "", format, source, extract.ArtifactBodyText(source, format, data), tags)
+		page, err := s.CreatePage(wsRow.ID, title, description, context, "", format, source, extract.ArtifactBodyText(source, format, data), tags)
 		if err != nil {
 			return formatError("failed to create page", err)
 		}
