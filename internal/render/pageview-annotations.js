@@ -35,8 +35,8 @@
   // with the viewer over postMessage. Anchors store kind:'element' with
   // path 'excalidraw:<elementId>' — the DB and comments API stay unchanged;
   // only resolution differs (bridge messages instead of querySelector).
-  const EX_PREFIX='excalidraw:';
-  const exIdOf=p=>(p&&p.slice(0,EX_PREFIX.length)===EX_PREFIX)?p.slice(EX_PREFIX.length):null;
+  const EX_PREFIX=HarborCore.EX_PREFIX;
+  const exIdOf=HarborCore.exIdOf;
   function exPost(msg){ msg.source='harbor-shell'; try{ frame.contentWindow.postMessage(msg,'*'); }catch(_){}}
   var exGeo={}, exGeoWait={};
   window.addEventListener('message',function(ev){
@@ -117,7 +117,7 @@
   const inlineTitle=document.getElementById('cpInlineTitle');
   let replyParent=0;   // comment id this draft replies to (reply thread, HARB-20/34)
   let editID=0;        // when >0 the inline box edits this open comment (PATCH)
-  function mapStateAnchor(){ return {kind:state.type==='selection'?'text':(state.type==='element'?'element':'document'), path:state.anchor, quote:state.quote}; }
+  function mapStateAnchor(){ return HarborCore.stateToAnchor(state); }
   function inlineResolved(){ return window.harborResolveAnchor ? window.harborResolveAnchor(mapStateAnchor()) : null; }
   // Rect is in iframe coords (bridge geometry); translate into shell coords —
   // same placement math as the DOM path below.
@@ -288,10 +288,9 @@
   // comment button disables, the selection pill hides, and the panel cannot
   // open.
   if(!window.harborModes){
-    window.harborModes={m:'reader',
-      get:function(){ return this.m; },
-      set:function(next){ if(next===this.m) return; var prev=this.m; this.m=next;
-        document.dispatchEvent(new CustomEvent('harbor-mode',{detail:{prev:prev,next:next}})); } };
+    window.harborModes=HarborCore.createModes(function(d){
+      document.dispatchEvent(new CustomEvent('harbor-mode',{detail:d}));
+    });
   }
   function syncCommentSuppression(){
     var tour=window.harborModes && window.harborModes.get()==='tour';
@@ -720,27 +719,10 @@
   // revised (use Reply instead); Reply starts a new comment citing the parent.
   var itemsById={};
   var jumpIdx={};
-  function firstAnchorLabel(a){
-    if(!a) return '';
-    if(a.kind==='text') return a.quote||a.path||'text selection';
-    if(a.kind==='element'){
-      var p=a.path||'';
-      if(p.slice(0,11)==='excalidraw:') return 'shape in drawing';
-      return p||'element';
-    }
-    return 'whole page';
-  }
-  function anchorLabel(c){
-    var a=c.anchors||[];
-    if(a.length>1) return a.length+' spots';
-    if(a.length===1) return firstAnchorLabel(a[0]);
-    if(c.quote) return c.quote;
-    if(c.type==='selection') return c.anchor||'text selection';
-    if(c.type==='element') return c.anchor||'element';
-    return 'whole page';
-  }
-  function aKindFor(c){ var a=(c.anchors&&c.anchors[0])||{}; return a.kind||(c.type==='selection'?'text':(c.type==='element'?'element':'document')); }
-  function itemActions(c){
+  const firstAnchorLabel=HarborCore.firstAnchorLabel;
+  const anchorLabel=HarborCore.anchorLabel;
+  const aKindFor=c=>{ var a=(c.anchors&&c.anchors[0])||{}; return a.kind||HarborCore.anchorKindFor(c.type); };
+function itemActions(c){
     var out='<button type="button" class="cp-act cp-act-go" data-act="jump">Jump</button>';
     if(c.status==='open') out+='<button type="button" class="cp-act" data-act="edit">Edit</button>';
     out+='<button type="button" class="cp-act" data-act="'+(c.status==='done'?'reopen':'done')+'">'+(c.status==='done'?'Reopen':'Done')+'</button>';

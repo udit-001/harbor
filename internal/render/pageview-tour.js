@@ -27,14 +27,9 @@
   // mode claims the stage. Closers only revert to READER if they still own the
   // mode, so a close-triggered-by-a-mode-claim never clobbers the claimer.
   if (!window.harborModes) {
-    window.harborModes = {
-      m: 'reader',
-      get: function () { return this.m; },
-      set: function (next) {
-        if (next === this.m) return; const prev = this.m; this.m = next;
-        document.dispatchEvent(new CustomEvent('harbor-mode', { detail: { prev: prev, next: next } }));
-      }
-    };
+    window.harborModes = HarborCore.createModes(function (d) {
+      document.dispatchEvent(new CustomEvent('harbor-mode', { detail: d }));
+    });
   }
   function claimReader() { if (window.harborModes && window.harborModes.get() === 'tour') window.harborModes.set('reader'); }
   // If COMMENT claims the stage, the tour yields (closes cleanly).

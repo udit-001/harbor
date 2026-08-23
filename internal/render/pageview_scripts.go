@@ -18,3 +18,6 @@ var pageviewShellJS string
 
 //go:embed harbor-livesync.js
 var harborLiveSyncJS string
+
+//go:embed pageview-core.js
+var pageviewCoreJS string

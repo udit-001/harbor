@@ -61,6 +61,7 @@ func PageView(d PageViewData) string {
 		b.WriteString(string(ctx))
 		b.WriteString(`;</script>` + "\n")
 	}
+	b.WriteString(`<script>` + pageviewCoreJS + `</script>` + "\n")
 	b.WriteString(`<script>` + pageviewShellJS + `</script>` + "\n")
 	b.WriteString(`<script>` + pageviewAnnotationsJS + `</script>` + "\n")
 	b.WriteString(`<script>` + pageviewTourJS + `</script>` + "\n")
