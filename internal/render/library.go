@@ -458,11 +458,11 @@ a{text-decoration:none;color:inherit}
 .secitems>div{min-height:0;overflow:hidden}
 @media (prefers-reduced-motion:reduce){.secitems,.sec .chev{transition:none!important}}
 /* Custom scrollbars: slim, themed, invisible track */
-.nav{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
-.nav::-webkit-scrollbar{width:8px}
-.nav::-webkit-scrollbar-track{background:transparent}
-.nav::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
-.nav::-webkit-scrollbar-thumb:hover{background:var(--muted)}
+.nav,.body{scrollbar-width:thin;scrollbar-color:var(--border) transparent}
+.nav::-webkit-scrollbar,.body::-webkit-scrollbar{width:8px}
+.nav::-webkit-scrollbar-track,.body::-webkit-scrollbar-track{background:transparent}
+.nav::-webkit-scrollbar-thumb,.body::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px}
+.nav::-webkit-scrollbar-thumb:hover,.body::-webkit-scrollbar-thumb:hover{background:var(--muted)}
 .link{display:flex;align-items:center;gap:9px;padding:7px 8px;border-radius:var(--rs);color:var(--text);font-size:14px;transition:background .1s,color .1s,transform 120ms var(--ease)}
 .link:hover{background:var(--surface2)}
 .link.active{background:var(--acc-soft);color:var(--acc);font-weight:600}
