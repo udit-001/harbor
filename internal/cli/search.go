@@ -5,6 +5,7 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
+	"github.com/udit-001/harbor/internal/artifacts"
 	"github.com/udit-001/harbor/internal/db"
 	"github.com/udit-001/harbor/internal/extract"
 )
@@ -105,7 +106,7 @@ func runRebuildIndex(cmd *cobra.Command, s *db.Store) error {
 			results = append(results, r)
 			continue
 		}
-		data, err := os.ReadFile(managedPagePath(ws.Name, p.Slug))
+		data, err := os.ReadFile(artifacts.Path(resolveDataDir(), ws.Name, p.Slug, p.Format))
 		if err != nil {
 			r.Reason = "no managed file"
 			skipped++

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/udit-001/harbor/internal/artifacts"
 	"github.com/udit-001/harbor/internal/db"
 )
 
@@ -76,7 +77,7 @@ Examples:
 		// the walkthrough — warn so the agent knows to place data-cf-change.
 		if page, perr := s.PageBySlug(slug); perr == nil {
 			if ws, werr := s.GetWorkspace(page.WorkspaceID); werr == nil {
-				path := managedPagePath(ws.Name, slug)
+				path := artifacts.Path(resolveDataDir(), ws.Name, page.Slug, page.Format)
 				if data, rerr := os.ReadFile(path); rerr == nil {
 					if !strings.Contains(string(data), `data-cf-change="`+ch.ChangeID+`"`) {
 						fmt.Printf("  ⚠ Marker not found in %s — the walkthrough skips a change with no matching element.\n", path)

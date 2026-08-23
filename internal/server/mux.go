@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/udit-001/harbor/internal/artifacts"
 	"github.com/udit-001/harbor/internal/db"
 	"github.com/udit-001/harbor/internal/extract"
 	"github.com/udit-001/harbor/internal/render"
@@ -511,12 +512,10 @@ func filterQueryString(filter db.PageFilter, q string) string {
 	return "?" + strings.Join(parts, "&")
 }
 
-// managedArtifactPath resolves the managed file for a page under the given
-// data dir. The stored filename is <slug>.<format> — the file IS the artifact.
-// Workspace names and slugs are slugified/stable, so the path is
-// deterministic and safe.
+// managedArtifactPath resolves the served copy through internal/artifacts —
+// the store layout has exactly one definition.
 func managedArtifactPath(dataDir, workspaceName, slug, format string) string {
-	return filepath.Join(dataDir, "store", workspaceName, slug+"."+format)
+	return artifacts.Path(dataDir, workspaceName, slug, format)
 }
 
 // formatContentTypes maps each page format to the content type its raw bytes

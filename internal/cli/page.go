@@ -7,64 +7,13 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
+	"github.com/udit-001/harbor/internal/artifacts"
 	"github.com/udit-001/harbor/internal/db"
 	"github.com/udit-001/harbor/internal/extract"
 )
 
-// managedStoreDir is where imported page HTML lives — the harbor managed store:
-// <data_dir>/store/<workspace>/<slug>.html. Pages are real files here, owned by
-// harbor (imported on `page add`); the DB holds only metadata + the FTS index.
-func managedStoreDir(workspaceName string) string {
-	return filepath.Join(resolveDataDir(), "store", workspaceName)
-}
-
-// managedPagePath resolves the managed artifact file for a page. The stored
-// filename is <slug>.<format> — the file IS the artifact; callers pass the
-// full name (slug+"."+format). No extension is appended here.
-func managedPagePath(workspaceName, name string) string {
-	return filepath.Join(managedStoreDir(workspaceName), name)
-}
-
-// stageManagedPage writes page HTML to a temp file beside the managed page
-// path, ready to be renamed into place by commitManagedPage. Staging happens
-// before the DB commit and the rename after, so a failed update can never
-// leave the served file ahead of the index. Returns the temp path.
-func stageManagedPage(workspace, name string, data []byte) (string, error) {
-	dir := managedStoreDir(workspace)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return "", formatError("failed to create managed store directory", err)
-	}
-	tmp, err := os.CreateTemp(dir, name+"-*.tmp")
-	if err != nil {
-		return "", formatError("failed to stage page content", err)
-	}
-	tmpPath := tmp.Name()
-	if err := tmp.Chmod(0o644); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return "", formatError("failed to stage page content", err)
-	}
-	if _, err := tmp.Write(data); err != nil {
-		tmp.Close()
-		os.Remove(tmpPath)
-		return "", formatError("failed to stage page content", err)
-	}
-	if err := tmp.Close(); err != nil {
-		os.Remove(tmpPath)
-		return "", formatError("failed to stage page content", err)
-	}
-	return tmpPath, nil
-}
-
-// commitManagedPage atomically renames a staged temp file into the managed
-// page path. The rename flips the served file in one step — a crash mid-write
-// can never leave a truncated page on disk.
-func commitManagedPage(workspace, slug, tmpPath string) error {
-	if err := os.Rename(tmpPath, managedPagePath(workspace, slug)); err != nil {
-		return formatError("failed to write page to managed store", err)
-	}
-	return nil
-}
+// Managed-store layout and the stage→commit invariant live in
+// internal/artifacts — one seam for every writer of the served copy.
 
 var pageCmd = &cobra.Command{
 	Use:   "page",
@@ -135,15 +84,15 @@ Examples:
 			return formatError("failed to read source file", err)
 		}
 
-		staged, serr := stageManagedPage(workspaceName, slug+"."+format, data)
+		staged, serr := artifacts.Stage(resolveDataDir(), workspaceName, slug, format, data)
 		if serr != nil {
 			return serr
 		}
 		defer os.Remove(staged)
-		if err := commitManagedPage(workspaceName, slug+"."+format, staged); err != nil {
+		if err := artifacts.Commit(resolveDataDir(), workspaceName, slug, format, staged); err != nil {
 			return err
 		}
-		managedPath := managedPagePath(workspaceName, slug+"."+format)
+		managedPath := artifacts.Path(resolveDataDir(), workspaceName, slug, format)
 
 		description, _ := cmd.Flags().GetString("description")
 		context, _ := cmd.Flags().GetString("context")
@@ -319,9 +268,8 @@ Examples:
 			// The --file replacement must match the page's format: the stored
 			// filename is <slug>.<format>. Stage under the same name so the
 			// commit lands on the file the server serves for this format.
-			name := slug + "." + page.Format
 			var serr error
-			staged, serr = stageManagedPage(ws.Name, name, data)
+			staged, serr = artifacts.Stage(resolveDataDir(), ws.Name, slug, page.Format, data)
 			if serr != nil {
 				return serr
 			}
@@ -336,7 +284,7 @@ Examples:
 		}
 
 		if staged != "" {
-			if err := commitManagedPage(ws.Name, slug+"."+page.Format, staged); err != nil {
+			if err := artifacts.Commit(resolveDataDir(), ws.Name, slug, page.Format, staged); err != nil {
 				return err
 			}
 		}
@@ -376,7 +324,7 @@ Examples:
 		if err := s.DeletePage(slug); err != nil {
 			return formatError("failed to delete page", err)
 		}
-		_ = os.Remove(managedPagePath(ws.Name, slug+"."+page.Format)) // best-effort file cleanup
+		_ = os.Remove(artifacts.Path(resolveDataDir(), ws.Name, slug, page.Format)) // best-effort file cleanup
 		notifyPage(ws.Name, slug)
 
 		if jsonEnabled(cmd) {
@@ -445,7 +393,7 @@ func printPageJSON(s *db.Store, page db.Page, tags ...db.Tag) error {
 func pageMap(p db.Page, workspace string, tags []db.Tag) map[string]any {
 	return map[string]any{
 		"slug":        p.Slug,
-		"managedPath": managedPagePath(workspace, p.Slug+"."+p.Format),
+		"managedPath": artifacts.Path(resolveDataDir(), workspace, p.Slug, p.Format),
 		"title":       p.Title,
 		"workspace":   workspace,
 		"format":      p.Format,
